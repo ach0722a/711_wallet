@@ -1,16 +1,20 @@
 /**
- * 7-11 商品卡皮夾 - 離線 Service Worker 快取模組 (sw.js)
+ * 7-11 商品卡皮夾 - 離線 Service Worker 快取模組 (sw.js - v2)
+ * 
+ * 升級思路：
+ * 採用 Network-First (網路優先) 策略載入 HTML/JS/CSS，確保每次有新版本推送時
+ * 只要有網路就能立即獲取最新程式碼，斷網時才使用本地快取。
  */
 
-const CACHE_NAME = '711-wallet-cache-v1';
+const CACHE_NAME = '711-wallet-cache-v2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
-  './css/style.css',
-  './js/storage.js',
-  './js/scanner.js',
-  './js/barcode-view.js',
-  './js/app.js',
+  './css/style.css?v=2.0',
+  './js/storage.js?v=2.0',
+  './js/scanner.js?v=2.0',
+  './js/barcode-view.js?v=2.0',
+  './js/app.js?v=2.0',
   './manifest.json',
   './icons/icon-192.svg',
   './icons/icon-512.svg',
@@ -19,13 +23,13 @@ const ASSETS_TO_CACHE = [
 ];
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting(); // 強制立即跳過等待接管
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[SW] 預先快取核心靜態資產');
       return cache.addAll(ASSETS_TO_CACHE).catch(err => {
-        console.warn('[SW] 部分資產快取失敗 (略過):', err);
+        console.warn('[SW] 快取部分資產:', err);
       });
-    }).then(() => self.skipWaiting())
+    })
   );
 });
 
@@ -35,7 +39,7 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) {
-            console.log('[SW] 清理舊快取:', key);
+            console.log('[SW] 清除舊版本快取:', key);
             return caches.delete(key);
           }
         })
@@ -45,27 +49,26 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // 優先使用快取，快取沒有才發送網路請求 (Cache First 策略確保離線可用)
+  // 網路優先策略 (Network First)：先嘗試向伺服器拿最新檔案，拿不到(離線)才讀快取
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(event.request).then((networkResponse) => {
-        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-          return networkResponse;
+    fetch(event.request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
         }
-        const responseToCache = networkResponse.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
-        });
         return networkResponse;
-      }).catch(() => {
-        // 離線且無快取時的 fallback
-        if (event.request.mode === 'navigate') {
-          return caches.match('./index.html');
-        }
-      });
-    })
+      })
+      .catch(() => {
+        // 斷網離線時回退至快取
+        return caches.match(event.request).then((cachedResponse) => {
+          if (cachedResponse) return cachedResponse;
+          if (event.request.mode === 'navigate') {
+            return caches.match('./index.html');
+          }
+        });
+      })
   );
 });
