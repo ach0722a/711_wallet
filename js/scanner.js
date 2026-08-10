@@ -253,6 +253,9 @@ class CardScanner {
         const code1 = this.pendingCode1;
         const code2 = code;
 
+        // 自動截取當前相機鏡頭畫面作為實體卡照片備份
+        const snapshotPhoto = this.captureVideoSnapshot();
+
         // 鎖定防止連續誤刷
         this.stepTransitionLock = true;
         this.resetStepState();
@@ -265,10 +268,12 @@ class CardScanner {
             code: code1,
             code1: code1,
             code2: code2,
+            photoUrl: snapshotPhoto, // 自動存入即時拍攝照片
+            preferredView: snapshotPhoto ? 'photo' : 'barcode',
             format: decodedResult?.result?.format?.formatName || 'CODE128',
             faceValue: this.selectedFaceValue,
             balance: this.selectedFaceValue,
-            note: '雙段條碼連掃入庫'
+            note: '雙段連掃自動附照片'
           });
 
           this.currentBatchCards.push(newCard);
@@ -281,7 +286,7 @@ class CardScanner {
               code2: code2,
               currentStep: 1,
               batchCount: this.currentBatchCards.length,
-              message: `🎉 已完成第 ${this.currentBatchCards.length} 張卡片！請換下一張卡片掃上方卡號。`
+              message: `🎉 已完成第 ${this.currentBatchCards.length} 張卡片（已自動拍照存證）！請換下一張。`
             });
           }
         } catch (err) {
@@ -322,6 +327,7 @@ class CardScanner {
       return;
     }
 
+    const snapshotPhoto = this.captureVideoSnapshot();
     this.playBeep('success');
     this.triggerVibrate('success');
 
@@ -330,9 +336,11 @@ class CardScanner {
         code: code,
         code1: code,
         code2: '',
+        photoUrl: snapshotPhoto,
+        preferredView: snapshotPhoto ? 'photo' : 'barcode',
         faceValue: this.selectedFaceValue,
         balance: this.selectedFaceValue,
-        note: '單段條碼連掃入庫'
+        note: '單段條碼連掃自動附照片'
       });
 
       this.currentBatchCards.push(newCard);
@@ -343,11 +351,33 @@ class CardScanner {
           code: code,
           card: newCard,
           batchCount: this.currentBatchCards.length,
-          message: `✅ 已加入：${newCard.name} ($${newCard.faceValue})`
+          message: `✅ 已加入：${newCard.name} (已附照片備份)`
         });
       }
     } catch (err) {
       console.error('[Scanner] 存入失敗:', err);
+    }
+  }
+
+  // 從相機當前串流中無縫自動截圖 (解析度最佳化與壓縮)
+  captureVideoSnapshot() {
+    try {
+      const video = document.querySelector('#scanner-reader video');
+      if (!video || !video.videoWidth || !video.videoHeight) return '';
+
+      const canvas = document.createElement('canvas');
+      // 等比例縮放至寬度 900px，確保條碼清晰同時兼顧檔案大小 (約 80KB)
+      const scale = Math.min(1, 900 / video.videoWidth);
+      canvas.width = Math.round(video.videoWidth * scale);
+      canvas.height = Math.round(video.videoHeight * scale);
+
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      return canvas.toDataURL('image/jpeg', 0.80);
+    } catch (e) {
+      console.warn('[Scanner] 自動截取照片失敗:', e);
+      return '';
     }
   }
 
