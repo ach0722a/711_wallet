@@ -425,12 +425,47 @@ class AppController {
   updateScannerStepHint(text, isStep2 = false) {
     const hintEl = document.getElementById('scanner-step-hint');
     const skipBtn = document.getElementById('btn-skip-step2');
+    const pill1 = document.getElementById('step-pill-1');
+    const pill2 = document.getElementById('step-pill-2');
+    const reticle = document.getElementById('scanner-reticle');
+    const reticleLabel = document.getElementById('reticle-label');
+
     if (hintEl) {
       hintEl.textContent = text;
       hintEl.classList.toggle('step2-active', isStep2);
     }
     if (skipBtn) {
       skipBtn.style.display = isStep2 ? 'inline-block' : 'none';
+    }
+
+    if (isStep2) {
+      if (pill1) {
+        pill1.className = 'step-badge-pill';
+        pill1.querySelector('span:last-child').textContent = '① 卡號 (已錄入 ✔)';
+      }
+      if (pill2) {
+        pill2.className = 'step-badge-pill step-active-orange';
+      }
+      if (reticle) {
+        reticle.className = 'scanner-reticle-box reticle-step-2';
+      }
+      if (reticleLabel) {
+        reticleLabel.textContent = '請移至【下方檢核碼】';
+      }
+    } else {
+      if (pill1) {
+        pill1.className = 'step-badge-pill step-active';
+        pill1.querySelector('span:last-child').textContent = '① 上方主卡號';
+      }
+      if (pill2) {
+        pill2.className = 'step-badge-pill';
+      }
+      if (reticle) {
+        reticle.className = 'scanner-reticle-box reticle-step-1';
+      }
+      if (reticleLabel) {
+        reticleLabel.textContent = '請對準【上方卡號】';
+      }
     }
   }
 

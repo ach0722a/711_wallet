@@ -692,54 +692,103 @@ body {
   box-shadow: 0 0 12px var(--c-primary-glow);
 }
 
-/* 相機 Viewfinder 視窗 */
-.scanner-viewport-container {
-  flex: 1;
-  position: relative;
+/* 雙段條碼視覺進度條 (① ➔ ②) */
+.scanner-step-progress {
   display: flex;
   justify-content: center;
   align-items: center;
-  overflow: hidden;
+  gap: 8px;
+  padding: 6px 16px;
+  background: rgba(15, 23, 42, 0.85);
+  z-index: 10;
 }
 
-#scanner-reader {
-  width: 100% !important;
-  height: 100% !important;
-  border: none !important;
+.step-badge-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-light);
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-dim);
+  transition: all 0.25s ease;
 }
 
-#scanner-reader video {
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important;
+.pill-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
 }
 
-/* 雷射掃描紅/綠動態光條 */
+.step-badge-pill.step-active {
+  background: rgba(0, 129, 72, 0.3);
+  border-color: var(--c-neon-green);
+  color: var(--c-neon-green);
+  box-shadow: 0 0 12px rgba(0, 255, 136, 0.3);
+}
+
+.step-badge-pill.step-active-orange {
+  background: rgba(255, 122, 0, 0.3);
+  border-color: var(--c-orange);
+  color: var(--c-orange);
+  box-shadow: 0 0 12px var(--c-orange-glow);
+}
+
+.step-arrow {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+/* 相機取景框：狹窄橫長條 (高度 75px，專門鎖定單條碼) */
 .scanner-reticle-box {
   position: absolute;
-  width: 82%;
-  max-width: 380px;
-  height: 140px;
-  border: 2px solid var(--c-neon-green);
-  border-radius: 16px;
-  box-shadow: 0 0 25px rgba(0, 255, 136, 0.3), inset 0 0 25px rgba(0, 255, 136, 0.15);
+  width: 86%;
+  max-width: 360px;
+  height: 75px; /* 狹窄高度，只容納得下一段條碼 */
+  border-radius: 12px;
   pointer-events: none;
   z-index: 5;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 4px;
 }
 
-.scanner-laser-line {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, transparent, var(--c-neon-green), transparent);
-  box-shadow: 0 0 12px var(--c-neon-green);
-  animation: laserScan 1.8s infinite alternate ease-in-out;
+.reticle-step-1 {
+  border: 2px solid var(--c-neon-green);
+  box-shadow: 0 0 20px rgba(0, 255, 136, 0.4), inset 0 0 15px rgba(0, 255, 136, 0.15);
 }
 
-@keyframes laserScan {
-  0% { top: 10%; opacity: 0.6; }
-  100% { top: 90%; opacity: 1; }
+.reticle-step-2 {
+  border: 2px solid var(--c-orange);
+  box-shadow: 0 0 20px var(--c-orange-glow), inset 0 0 15px rgba(255, 122, 0, 0.2);
+}
+
+.reticle-label {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.75);
+  color: white;
+  letter-spacing: 0.5px;
+}
+
+.reticle-step-1 .reticle-label {
+  color: var(--c-neon-green);
+}
+
+.reticle-step-2 .reticle-label {
+  color: var(--c-orange);
 }
 
 /* 底部連續掃描抽屜托盤 (Recent Scans Tray) */
