@@ -82,7 +82,7 @@ class BarcodePresenter {
     if (!card) return;
 
     this.currentCard = card;
-    this.currentTab = card.photoUrl ? 'photo' : 'barcode';
+    this.currentTab = 'barcode'; // 預設永遠以「純淨數位條碼」開啟，方便店員秒刷！
     this.requestWakeLock();
 
     const modal = document.getElementById('card-detail-modal');
