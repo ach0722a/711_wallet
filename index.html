@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>7-11 商品卡皮夾 - 極速批次掃描與餘額管理</title>
+  
+  <!-- PWA & Mobile Meta Tags -->
+  <meta name="theme-color" content="#008148">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="7-11卡夾">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="icons/icon-192.svg">
+  <link rel="apple-touch-icon" href="icons/icon-192.svg">
+
+  <!-- 外部條碼與掃描核心庫 (CDN + 支援離線快取) -->
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+  <!-- 應用樣式表 -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- 頂部應用導航列 -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="brand-container">
+        <span class="brand-logo-badge">7-11</span>
+        <h1 class="brand-title">商品卡<span>皮夾</span></h1>
+      </div>
+      <div class="header-actions">
+        <button class="btn-icon-header" id="btn-open-backup" title="資料備份與管理">
+          💾
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 主視圖內容區 -->
+  <main class="main-content">
+    
+    <!-- 頂部資產總覽儀表板 -->
+    <section class="dashboard-card">
+      <div class="dashboard-hero">
+        <div>
+          <div class="hero-label">總可用餘額</div>
+          <div class="hero-balance" id="stat-total-balance">$0</div>
+        </div>
+      </div>
+      <div class="hero-sub-stats">
+        <div class="sub-stat-item">
+          <div class="sub-stat-value" id="stat-total-count">0</div>
+          <div class="sub-stat-label">總卡數</div>
+        </div>
+        <div class="sub-stat-item">
+          <div class="sub-stat-value" id="stat-active-count">0</div>
+          <div class="sub-stat-label">使用中</div>
+        </div>
+        <div class="sub-stat-item">
+          <div class="sub-stat-value" id="stat-today-spent">$0</div>
+          <div class="sub-stat-label">今日已扣款</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 搜尋、排序與狀態分頁 -->
+    <section class="controls-section">
+      <div class="search-row">
+        <div class="search-wrapper">
+          <span class="search-icon">🔍</span>
+          <input type="text" class="search-input" id="search-input" placeholder="搜尋條碼末碼或卡片名稱..." autocomplete="off">
+        </div>
+        <select class="sort-select" id="sort-select">
+          <option value="newest">最新更新</option>
+          <option value="balance-desc">餘額多 ➔ 少</option>
+          <option value="balance-asc">餘額少 ➔ 多</option>
+          <option value="facevalue">面額大 ➔ 小</option>
+        </select>
+      </div>
+
+      <div class="filter-tabs">
+        <button class="filter-tab active" data-filter="all">全部</button>
+        <button class="filter-tab" data-filter="active">使用中</button>
+        <button class="filter-tab" data-filter="depleted">已用完</button>
+      </div>
+    </section>
+
+    <!-- 卡片清單網格 (動態渲染) -->
+    <section class="cards-grid" id="cards-grid">
+      <!-- 由 app.js 動態渲染 -->
+    </section>
+
+  </main>
+
+  <!-- 底部常駐懸浮快捷鍵 -->
+  <footer class="bottom-dock">
+    <div class="dock-inner">
+      <button class="btn-scan-main" id="btn-start-scan">
+        <span>⚡ 連續極速掃描</span>
+      </button>
+      <button class="btn-manual-main" id="btn-manual-add">
+        ➕ 手動輸入
+      </button>
+    </div>
+  </footer>
+
+  <!-- =======================================================================
+       相機批次連續掃描全螢幕彈窗 (Batch Rapid Scanner)
+       ======================================================================= -->
+  <div class="modal-overlay" id="scanner-modal">
+    <!-- 頂部控制列與即時計數 HUD -->
+    <div class="scanner-top-bar">
+      <div class="scanner-badge-hud">
+        <span>🎯 已連掃：</span>
+        <span id="scanner-live-count">0</span>
+        <span>張</span>
+      </div>
+      <div class="scanner-tool-actions">
+        <button class="btn-scanner-tool" id="btn-torch" title="手電筒補光">💡</button>
+        <label class="btn-scanner-tool" title="上傳圖片辨識" style="cursor: pointer;">
+          🖼️
+          <input type="file" id="input-photo-upload" accept="image/*" style="display: none;">
+        </label>
+        <button class="btn-scanner-tool" id="btn-close-scanner" title="結束掃描">✕</button>
+      </div>
+    </div>
+
+    <!-- 預設面額選擇列 (掃描當下自動套用) -->
+    <div class="preset-selector-bar">
+      <span class="preset-title">預設面額:</span>
+      <button class="preset-pill" data-value="50">$50</button>
+      <button class="preset-pill active" data-value="100">$100</button>
+      <button class="preset-pill" data-value="200">$200</button>
+      <button class="preset-pill" data-value="500">$500</button>
+      <button class="preset-pill" data-value="custom">自訂</button>
+    </div>
+
+    <!-- 相機視窗與動態雷射瞄準框 -->
+    <div class="scanner-viewport-container">
+      <div id="scanner-reader"></div>
+      <div class="scanner-reticle-box">
+        <div class="scanner-laser-line"></div>
+      </div>
+    </div>
+
+    <!-- 底部即時連掃入庫紀錄托盤 -->
+    <div class="scanner-bottom-tray">
+      <div class="tray-title">本次連續掃描紀錄：</div>
+      <div class="scanner-recent-list" id="scanner-recent-tray">
+        <div class="tray-placeholder">對準條碼即可自動連續掃入...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 隱藏圖片辨識容器 -->
+  <div id="scanner-hidden-sandbox" style="display: none;"></div>
+
+  <!-- =======================================================================
+       卡片詳情、條碼出示與扣款計算彈窗 (Barcode Detail Modal)
+       ======================================================================= -->
+  <div class="bottom-sheet-modal" id="card-detail-modal">
+    <div class="sheet-content">
+      <div class="sheet-header">
+        <div>
+          <h2 class="sheet-card-title" id="modal-card-name">7-11 商品卡</h2>
+          <span class="status-badge" id="modal-card-status-badge">使用中</span>
+        </div>
+        <button class="btn-close-sheet" id="btn-close-detail">✕</button>
+      </div>
+
+      <!-- 店員出示模式專區 (高對比純白卡片) -->
+      <div class="cashier-barcode-box">
+        <div class="barcode-hint">📱 請出示此條碼供 7-11 店員掃描</div>
+        <svg id="modal-barcode-svg"></svg>
+        <div class="barcode-digits-display" id="modal-card-code">---- ---- ---- ----</div>
+      </div>
+
+      <!-- 餘額與手動修改面板 -->
+      <div class="balance-editor-panel">
+        <div class="editor-row">
+          <div>
+            <span class="editor-label">目前剩餘餘額 (面額 $<span id="modal-card-facevalue">100</span>)</span>
+            <div class="editor-val">$<span id="modal-card-balance">0</span></div>
+          </div>
+          <button class="btn-edit-pencil" id="btn-edit-balance-direct">✏️ 改餘額</button>
+        </div>
+      </div>
+
+      <!-- 快捷消費扣款計算機 -->
+      <div class="deduct-calculator-box">
+        <div class="section-subtitle">🛒 快速結帳扣款 (消費自動扣減)</div>
+        <div class="quick-spend-chips">
+          <button class="btn-quick-spend" data-amount="10">-$10</button>
+          <button class="btn-quick-spend" data-amount="20">-$20</button>
+          <button class="btn-quick-spend" data-amount="35">-$35</button>
+          <button class="btn-quick-spend" data-amount="50">-$50</button>
+        </div>
+        <div class="spend-input-row">
+          <input type="number" class="spend-input" id="quick-spend-input" placeholder="輸入本次消費金額 (元)...">
+          <button class="btn-confirm-deduct" id="btn-custom-deduct">確認扣款</button>
+        </div>
+      </div>
+
+      <!-- 交易歷史歷程 -->
+      <div class="history-section">
+        <div class="section-subtitle">📋 異動紀錄</div>
+        <div class="history-list" id="modal-history-list">
+          <!-- 動態插入 -->
+        </div>
+      </div>
+
+      <!-- 底部動作 -->
+      <div class="sheet-footer-actions">
+        <button class="btn-sheet-action btn-secondary-action" id="btn-mark-depleted">標記已用完 ($0)</button>
+        <button class="btn-sheet-action btn-danger-action" id="btn-delete-current-card">刪除此卡</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =======================================================================
+       資料備份與管理彈窗 (Backup Modal)
+       ======================================================================= -->
+  <div class="modal-overlay" id="backup-modal">
+    <div class="backup-modal-content">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h2 class="backup-title">💾 資料備份與管理</h2>
+        <button class="btn-close-sheet" onclick="window.app.closeBackupModal()">✕</button>
+      </div>
+      <p class="backup-desc">
+        您的所有條碼與餘額資料均已啟用<strong>本機雙重儲存 (IndexedDB + LocalStorage) 與永久保存機制</strong>。建議定期匯出備份以利換手機或記錄：
+      </p>
+
+      <div class="backup-btn-grid">
+        <button class="btn-backup-item" id="btn-export-json">
+          <span>📥 匯出完整 JSON 備份檔</span>
+          <span style="font-size: 12px; color: var(--c-neon-green);">推薦 (可隨時還原)</span>
+        </button>
+
+        <button class="btn-backup-item" id="btn-export-csv">
+          <span>📊 匯出 Excel (CSV 表格)</span>
+          <span style="font-size: 12px; color: var(--c-orange);">可在電腦查看</span>
+        </button>
+
+        <label class="btn-backup-item" style="cursor: pointer;">
+          <span>📤 匯入備份檔 (JSON / CSV)</span>
+          <span style="font-size: 12px; color: #94A3B8;">點擊選檔</span>
+          <input type="file" id="input-import-file" accept=".json,.csv,.txt" style="display: none;">
+        </label>
+
+        <button class="btn-backup-item" id="btn-clean-depleted" style="border-color: rgba(239, 43, 45, 0.3);">
+          <span style="color: #FFAAAA;">🧹 一鍵清理已用完卡片 ($0)</span>
+          <span style="font-size: 12px; color: #FFAAAA;">批次整理</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 應用程式邏輯腳本 -->
+  <script src="js/storage.js"></script>
+  <script src="js/scanner.js"></script>
+  <script src="js/barcode-view.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

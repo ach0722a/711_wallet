@@ -1,0 +1,24 @@
+{
+  "name": "7-11 商品卡皮夾 (7-11 Card Wallet)",
+  "short_name": "7-11卡夾",
+  "description": "極速批次掃描 7-11 商品卡條碼、餘額管理與店員刷卡出示工具",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#008148",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "icons/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
