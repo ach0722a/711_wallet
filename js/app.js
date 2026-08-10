@@ -23,8 +23,21 @@ class AppController {
 
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./sw.js')
-        .then(() => console.log('[PWA] Service Worker 註冊成功'))
+        .then((reg) => {
+          console.log('[PWA] Service Worker 註冊成功');
+          // 每次開啟主動向伺服器檢查是否有新推版本
+          reg.update();
+        })
         .catch(err => console.warn('[PWA] Service Worker 註冊失敗:', err));
+
+      // 監聽新版本接管事件
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+          refreshing = true;
+          this.showToast('🚀 應用已自動更新至最新版本！', 'success');
+        }
+      });
     }
   }
 
