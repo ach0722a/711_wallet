@@ -189,15 +189,22 @@ class CardStorage {
     return this.cards.find(c => c.code.trim() === code.trim());
   }
 
-  // 新增卡片
+  // 新增卡片 (支援單段或雙段條碼)
   async addCard(data) {
     const now = new Date().toISOString();
     const faceValue = Number(data.faceValue) || Number(this.settings.defaultFaceValue) || 100;
     const balance = data.balance !== undefined ? Number(data.balance) : faceValue;
 
+    const code1 = String(data.code1 || data.code || '').trim();
+    const code2 = String(data.code2 || '').trim();
+    const primaryCode = code1 || code2;
+
     const newCard = {
       id: 'card_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-      code: String(data.code).trim(),
+      code: primaryCode, // 相容主條碼
+      code1: code1,      // 第一段 (卡號)
+      code2: code2,      // 第二段 (檢核碼/密碼)
+      hasDualBarcode: Boolean(code1 && code2),
       format: data.format || 'CODE128',
       name: data.name || `商品卡 ${this.cards.length + 1}`,
       faceValue: faceValue,
@@ -396,10 +403,12 @@ class CardStorage {
 
   // 匯出為 CSV 表格 (可用 Excel 開啟)
   exportCSV() {
-    const headers = ['卡片名稱', '條碼內容', '面額', '剩餘餘額', '狀態', '備註', '建立時間', '最後更新時間'];
+    const headers = ['卡片名稱', '主條碼', '第一段(卡號)', '第二段(檢核碼)', '面額', '剩餘餘額', '狀態', '備註', '建立時間', '最後更新時間'];
     const rows = this.cards.map(c => [
       `"${(c.name || '').replace(/"/g, '""')}"`,
-      `"\t${(c.code || '').replace(/"/g, '""')}"`, // 加上 \t 防止 Excel 把條碼當成科學記號
+      `"\t${(c.code || '').replace(/"/g, '""')}"`,
+      `"\t${(c.code1 || c.code || '').replace(/"/g, '""')}"`,
+      `"\t${(c.code2 || '').replace(/"/g, '""')}"`,
       c.faceValue || 0,
       c.balance || 0,
       c.balance > 0 ? '使用中' : '已用完',

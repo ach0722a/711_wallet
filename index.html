@@ -110,13 +110,19 @@
        相機批次連續掃描全螢幕彈窗 (Batch Rapid Scanner)
        ======================================================================= -->
   <div class="modal-overlay" id="scanner-modal">
-    <!-- 頂部控制列與即時計數 HUD -->
+    <!-- 頂部控制列、模式切換與即時計數 HUD -->
     <div class="scanner-top-bar">
       <div class="scanner-badge-hud">
         <span>🎯 已連掃：</span>
         <span id="scanner-live-count">0</span>
         <span>張</span>
       </div>
+
+      <div class="mode-toggle-group">
+        <button class="mode-toggle-btn active" data-mode="dual">雙段條碼</button>
+        <button class="mode-toggle-btn" data-mode="single">單段條碼</button>
+      </div>
+
       <div class="scanner-tool-actions">
         <button class="btn-scanner-tool" id="btn-torch" title="手電筒補光">💡</button>
         <label class="btn-scanner-tool" title="上傳圖片辨識" style="cursor: pointer;">
@@ -125,6 +131,12 @@
         </label>
         <button class="btn-scanner-tool" id="btn-close-scanner" title="結束掃描">✕</button>
       </div>
+    </div>
+
+    <!-- 雙段條碼步驟引導指示列 -->
+    <div class="scanner-step-banner">
+      <span class="step-hint-text" id="scanner-step-hint">請對準第 1 段「卡號條碼」</span>
+      <button class="btn-skip-step2" id="btn-skip-step2" style="display: none;">略過第二段</button>
     </div>
 
     <!-- 預設面額選擇列 (掃描當下自動套用) -->
@@ -170,11 +182,9 @@
         <button class="btn-close-sheet" id="btn-close-detail">✕</button>
       </div>
 
-      <!-- 店員出示模式專區 (高對比純白卡片) -->
-      <div class="cashier-barcode-box">
-        <div class="barcode-hint">📱 請出示此條碼供 7-11 店員掃描</div>
-        <svg id="modal-barcode-svg"></svg>
-        <div class="barcode-digits-display" id="modal-card-code">---- ---- ---- ----</div>
+      <!-- 店員出示模式專區 (高對比純白卡片，支援雙段條碼動態渲染) -->
+      <div class="cashier-barcode-box" id="modal-barcode-container">
+        <!-- 由 barcode-view.js 動態渲染雙段條碼或單段條碼 -->
       </div>
 
       <!-- 餘額與手動修改面板 -->

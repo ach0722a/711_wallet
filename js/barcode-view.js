@@ -1,11 +1,10 @@
 /**
  * 7-11 商品卡皮夾 - 條碼出示與快捷扣款計算器模組 (barcode-view.js)
  * 
- * 設計思路與技術亮點：
- * 1. 向量 SVG 高清條碼渲染 (JsBarcode)：極致銳利黑白對比，7-11 POS 掃描槍 100% 秒讀。
- * 2. 全螢幕店員出示模式 (Cashier Presenter)：支援螢幕常亮 (Screen Wake Lock API)，結帳不暗螢幕。
- * 3. 智能消費扣款計算機：輸入消費額即時換算新餘額，並可一鍵填寫備註。
- * 4. 完整交易流水帳：紀錄每一筆扣款與改額歷程。
+ * 升級亮點：
+ * 1. 雙段條碼店員出示模式：清晰呈現「[1] 主卡號條碼」與「[2] 檢核驗證碼」，店員依序刷讀 100% 成功。
+ * 2. 向量 SVG 高清渲染與防休眠常亮鎖定。
+ * 3. 智能消費扣款計算機與歷程追蹤。
  */
 
 class BarcodePresenter {
@@ -14,30 +13,24 @@ class BarcodePresenter {
     this.wakeLock = null;
   }
 
-  // 請求螢幕常亮 (結帳出示條碼時防止手機螢幕自動休眠變暗)
   async requestWakeLock() {
     if ('wakeLock' in navigator) {
       try {
         this.wakeLock = await navigator.wakeLock.request('screen');
-        console.log('[Presenter] 螢幕常亮鎖定已啟用');
-      } catch (err) {
-        console.warn('[Presenter] 啟用螢幕常亮失敗:', err);
-      }
+      } catch (err) {}
     }
   }
 
-  // 釋放螢幕常亮
   releaseWakeLock() {
     if (this.wakeLock) {
       this.wakeLock.release().then(() => {
         this.wakeLock = null;
-        console.log('[Presenter] 螢幕常亮已釋放');
       }).catch(console.warn);
     }
   }
 
-  // 繪製條碼 (支援 Code128, Code39, EAN, QR)
-  renderBarcode(svgElementOrSelector, code, format = 'CODE128') {
+  // 繪製單一條碼
+  renderBarcode(svgElementOrSelector, code, format = 'CODE128', height = 75) {
     const el = typeof svgElementOrSelector === 'string' 
       ? document.querySelector(svgElementOrSelector) 
       : svgElementOrSelector;
@@ -49,30 +42,25 @@ class BarcodePresenter {
         JsBarcode(el, String(code).trim(), {
           format: 'CODE128',
           lineColor: '#000000',
-          width: 2.2,
-          height: 90,
-          displayValue: false, // 條碼下方另外用大字體顯示以利排版
-          margin: 10,
+          width: 2.1,
+          height: height,
+          displayValue: false,
+          margin: 8,
           background: '#ffffff'
         });
       } else {
-        // 簡易 SVG 條碼後備渲染
-        this.renderFallbackBarcode(el, code);
+        this.renderFallbackBarcode(el, code, height);
       }
     } catch (e) {
-      console.warn('[Presenter] JsBarcode 渲染失敗，切換為後備模式:', e);
-      this.renderFallbackBarcode(el, code);
+      this.renderFallbackBarcode(el, code, height);
     }
   }
 
-  // 後備條碼渲染演算法 (當 CDN 離線時保證條碼依然能產生)
-  renderFallbackBarcode(svgEl, code) {
+  renderFallbackBarcode(svgEl, code, height = 75) {
     const cleanCode = String(code).trim();
     let rects = '';
     let x = 10;
-    const height = 80;
     
-    // 虛擬條碼圖案生成 (具有固定特徵寬度的條碼)
     for (let i = 0; i < cleanCode.length; i++) {
       const charCode = cleanCode.charCodeAt(i);
       const w1 = (charCode % 3) + 1.8;
@@ -95,31 +83,74 @@ class BarcodePresenter {
     this.currentCard = card;
     this.requestWakeLock();
 
-    // 更新彈窗 UI
     const modal = document.getElementById('card-detail-modal');
     if (!modal) return;
 
-    // 填充卡片基本資訊
+    // 基本資料
     document.getElementById('modal-card-name').textContent = card.name || '7-11 商品卡';
-    document.getElementById('modal-card-code').textContent = this.formatCardCode(card.code);
     document.getElementById('modal-card-balance').textContent = card.balance;
     document.getElementById('modal-card-facevalue').textContent = card.faceValue;
     
-    // 狀態標籤
     const badgeEl = document.getElementById('modal-card-status-badge');
     if (badgeEl) {
       badgeEl.textContent = card.balance > 0 ? '可使用' : '已用完';
       badgeEl.className = `status-badge ${card.balance > 0 ? 'badge-active' : 'badge-depleted'}`;
     }
 
-    // 渲染大條碼
-    const barcodeSvg = document.getElementById('modal-barcode-svg');
-    this.renderBarcode(barcodeSvg, card.code, card.format);
+    // 判斷是否為雙段條碼並動態渲染出示區
+    const code1 = card.code1 || card.code;
+    const code2 = card.code2;
 
-    // 渲染歷史紀錄清單
+    const barcodeContainer = document.getElementById('modal-barcode-container');
+    if (barcodeContainer) {
+      if (code2) {
+        // 雙段條碼模式 (清晰分列第一段與第二段)
+        barcodeContainer.innerHTML = `
+          <div class="barcode-hint">📱 7-11 結帳時，請店員依序掃描以下【兩段條碼】：</div>
+          
+          <!-- 第一段：主卡號條碼 -->
+          <div class="dual-barcode-section">
+            <div class="dual-barcode-label">
+              <span class="step-num">1</span>
+              <span>第一段：主卡號條碼</span>
+            </div>
+            <svg id="modal-barcode-svg-1" class="cashier-svg"></svg>
+            <div class="barcode-digits-display">${this.formatCardCode(code1)}</div>
+          </div>
+
+          <div class="dual-barcode-divider"></div>
+
+          <!-- 第二段：檢核驗證碼 -->
+          <div class="dual-barcode-section">
+            <div class="dual-barcode-label">
+              <span class="step-num">2</span>
+              <span>第二段：檢核驗證碼</span>
+            </div>
+            <svg id="modal-barcode-svg-2" class="cashier-svg"></svg>
+            <div class="barcode-digits-display">${this.formatCardCode(code2)}</div>
+          </div>
+        `;
+        
+        setTimeout(() => {
+          this.renderBarcode('#modal-barcode-svg-1', code1, card.format, 65);
+          this.renderBarcode('#modal-barcode-svg-2', code2, card.format, 65);
+        }, 30);
+      } else {
+        // 單段條碼模式
+        barcodeContainer.innerHTML = `
+          <div class="barcode-hint">📱 請出示此條碼供 7-11 店員掃描</div>
+          <svg id="modal-barcode-svg-single" class="cashier-svg"></svg>
+          <div class="barcode-digits-display">${this.formatCardCode(code1)}</div>
+        `;
+        setTimeout(() => {
+          this.renderBarcode('#modal-barcode-svg-single', code1, card.format, 85);
+        }, 30);
+      }
+    }
+
+    // 渲染歷史紀錄
     this.renderHistoryList(card.history || []);
 
-    // 重設扣款輸入框
     const spendInput = document.getElementById('quick-spend-input');
     if (spendInput) spendInput.value = '';
 
@@ -127,7 +158,6 @@ class BarcodePresenter {
     document.body.style.overflow = 'hidden';
   }
 
-  // 關閉彈窗
   closeModal() {
     const modal = document.getElementById('card-detail-modal');
     if (modal) {
@@ -138,13 +168,11 @@ class BarcodePresenter {
     this.currentCard = null;
   }
 
-  // 格式化卡號 (每 4 碼空一格，便於人工核對)
   formatCardCode(code) {
     if (!code) return '';
     return String(code).replace(/(\d{4})(?=\d)/g, '$1 ');
   }
 
-  // 渲染交易歷史列表
   renderHistoryList(history) {
     const container = document.getElementById('modal-history-list');
     if (!container) return;
@@ -181,7 +209,6 @@ class BarcodePresenter {
     }).join('');
   }
 
-  // 執行快捷扣款
   async executeDeduct(amount, customNote = '') {
     if (!this.currentCard) return;
 
@@ -198,12 +225,11 @@ class BarcodePresenter {
 
     const updated = await window.cardStorage.deductCard(this.currentCard.id, num, customNote);
     this.currentCard = updated;
-    this.openModal(updated.id); // 刷新彈窗顯示
+    this.openModal(updated.id);
     window.app?.refreshUI();
     window.app?.showToast(`✅ 已扣款 $${num}，剩餘餘額 $${updated.balance}`, 'success');
   }
 
-  // 直接修改餘額 (手動設定金額)
   async executeSetBalance(newBalance) {
     if (!this.currentCard) return;
 
@@ -225,5 +251,4 @@ class BarcodePresenter {
   }
 }
 
-// 建立全域條碼出示器物件
 window.barcodePresenter = new BarcodePresenter();

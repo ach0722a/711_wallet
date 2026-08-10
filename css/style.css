@@ -877,36 +877,141 @@ body {
 }
 
 /* 店員出示模式專區 (高對比純白卡片) */
-.cashier-barcode-box {
-  background: #ffffff;
-  border-radius: var(--radius-md);
-  padding: 16px 12px;
-  text-align: center;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-  margin-bottom: 18px;
+/* 模式切換按鈕組 (雙段條碼 / 單段條碼) */
+.mode-toggle-group {
+  display: flex;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 3px;
+  border-radius: var(--radius-full);
+  gap: 4px;
+  border: 1px solid var(--border-light);
 }
 
-.barcode-hint {
+.mode-toggle-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
   font-size: 11px;
   font-weight: 700;
-  color: #64748B;
-  margin-bottom: 8px;
-  letter-spacing: 0.5px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: var(--transition-fast);
 }
 
-#modal-barcode-svg {
-  width: 100%;
-  max-width: 340px;
-  height: auto;
+.mode-toggle-btn.active {
+  background: var(--c-orange);
+  color: white;
+  box-shadow: 0 0 10px var(--c-orange-glow);
 }
 
-.barcode-digits-display {
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 17px;
+/* 掃描導引提示橫幅 (即時步驟指示) */
+.scanner-step-banner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 10;
+}
+
+.step-hint-text {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--c-neon-green);
+  transition: all 0.2s ease;
+}
+
+.step-hint-text.step2-active {
+  color: var(--c-orange);
+  font-size: 14px;
+  animation: pulse 1s infinite alternate;
+}
+
+.btn-skip-step2 {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--border-light);
+  color: white;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.04); }
+}
+
+/* 雙段條碼店員出示樣式 (Dual Barcode Presenter) */
+.dual-barcode-section {
+  padding: 10px 0;
+}
+
+.dual-barcode-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12px;
   font-weight: 800;
-  color: #0F172A;
-  letter-spacing: 3px;
-  margin-top: 6px;
+  color: #1E293B;
+  margin-bottom: 6px;
+}
+
+.step-num {
+  background: #008148;
+  color: white;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.dual-barcode-divider {
+  height: 1px;
+  background: #E2E8F0;
+  margin: 8px 0;
+  position: relative;
+}
+
+.badge-dual-tag {
+  background: rgba(255, 122, 0, 0.2);
+  color: var(--c-orange);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 122, 0, 0.3);
+}
+
+.code-sub-badge {
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--c-neon-green);
+  margin-left: 6px;
+}
+
+.badge-mini-dual {
+  background: var(--c-orange);
+  color: white;
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.cashier-svg {
+  width: 100%;
+  max-width: 320px;
+  height: auto;
 }
 
 /* 餘額卡片與修改 */

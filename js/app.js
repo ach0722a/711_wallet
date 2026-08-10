@@ -1,33 +1,26 @@
 /**
  * 7-11 商品卡皮夾 - 主控制器與 UI 互動邏輯 (app.js)
  * 
- * 設計思路與技術亮點：
- * 1. 響應式事件中心：管理卡片清單渲染、即時搜尋、智慧排序與篩選分頁。
- * 2. 批次連續掃描整合：無縫串接相機模組，即時更新頂部統計儀表板與卡片庫。
- * 3. 備份與還原管理：提供一鍵 JSON / CSV 下載與檔案匯入。
- * 4. 友善 Toast 彈窗與觸控優化：隨時提供清晰操作反饋。
+ * 升級亮點：
+ * 1. 支援「雙段條碼模式」與「單段條碼模式」一鍵切換。
+ * 2. 掃描中步驟導引（錄完卡號提示掃檢核碼，並支援手動略過第二段）。
+ * 3. 卡片清單與手動輸入均支援雙段條碼標註。
  */
 
 class AppController {
   constructor() {
-    this.currentFilter = 'all'; // 'all' | 'active' | 'depleted'
-    this.currentSort = 'newest'; // 'newest' | 'balance-desc' | 'balance-asc' | 'facevalue'
+    this.currentFilter = 'all';
+    this.currentSort = 'newest';
     this.searchQuery = '';
     this.isAppReady = false;
   }
 
   async init() {
-    // 1. 初始化儲存模組
     await window.cardStorage.init();
-
-    // 2. 綁定所有 DOM 事件
     this.bindEvents();
-
-    // 3. 初始畫面渲染
     this.refreshUI();
     this.isAppReady = true;
 
-    // 4. 註冊 Service Worker 實現離線使用
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./sw.js')
         .then(() => console.log('[PWA] Service Worker 註冊成功'))
@@ -35,11 +28,10 @@ class AppController {
     }
   }
 
-  // 綁定所有按鈕與互動事件
   bindEvents() {
-    // 篩選標籤切換
+    // 篩選標籤
     document.querySelectorAll('.filter-tab').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', () => {
         document.querySelectorAll('.filter-tab').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this.currentFilter = btn.dataset.filter;
@@ -47,7 +39,7 @@ class AppController {
       });
     });
 
-    // 排序選擇
+    // 排序
     const sortSelect = document.getElementById('sort-select');
     if (sortSelect) {
       sortSelect.addEventListener('change', (e) => {
@@ -56,7 +48,7 @@ class AppController {
       });
     }
 
-    // 搜尋輸入框
+    // 搜尋
     const searchInput = document.getElementById('search-input');
     if (searchInput) {
       searchInput.addEventListener('input', (e) => {
@@ -65,19 +57,38 @@ class AppController {
       });
     }
 
-    // 開啟批次掃描相機按鈕
+    // 開啟掃描器
     const startScanBtn = document.getElementById('btn-start-scan');
     if (startScanBtn) {
       startScanBtn.addEventListener('click', () => this.openScannerModal());
     }
 
-    // 關閉相機掃描
+    // 關閉掃描器
     const closeScanBtn = document.getElementById('btn-close-scanner');
     if (closeScanBtn) {
       closeScanBtn.addEventListener('click', () => this.closeScannerModal());
     }
 
-    // 掃描預設面額標籤按鈕 (50, 100, 200, 500)
+    // 模式切換：雙段條碼 vs 單段條碼
+    document.querySelectorAll('.mode-toggle-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.mode-toggle-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const mode = btn.dataset.mode;
+        window.cardScanner.setScanMode(mode);
+        this.updateScannerStepHint(mode === 'dual' ? '請對準第 1 段「卡號條碼」' : '對準條碼即可自動存入');
+      });
+    });
+
+    // 略過第二段條碼按鈕
+    const btnSkipStep2 = document.getElementById('btn-skip-step2');
+    if (btnSkipStep2) {
+      btnSkipStep2.addEventListener('click', () => {
+        window.cardScanner.skipSecondBarcode((res) => this.handleScanResult(res));
+      });
+    }
+
+    // 預設面額選擇
     document.querySelectorAll('.preset-pill').forEach(pill => {
       pill.addEventListener('click', () => {
         document.querySelectorAll('.preset-pill').forEach(p => p.classList.remove('active'));
@@ -95,7 +106,7 @@ class AppController {
       });
     });
 
-    // 手電筒補光按鈕
+    // 手電筒補光
     const torchBtn = document.getElementById('btn-torch');
     if (torchBtn) {
       torchBtn.addEventListener('click', async () => {
@@ -105,7 +116,7 @@ class AppController {
       });
     }
 
-    // 上傳圖片掃描按鈕
+    // 上傳圖片辨識
     const photoUploadInput = document.getElementById('input-photo-upload');
     if (photoUploadInput) {
       photoUploadInput.addEventListener('change', async (e) => {
@@ -123,25 +134,25 @@ class AppController {
       });
     }
 
-    // 手動輸入卡號按鈕
+    // 手動輸入卡號
     const manualAddBtn = document.getElementById('btn-manual-add');
     if (manualAddBtn) {
       manualAddBtn.addEventListener('click', () => this.openManualAddModal());
     }
 
-    // 備份與資料管理按鈕
+    // 備份彈窗
     const backupBtn = document.getElementById('btn-open-backup');
     if (backupBtn) {
       backupBtn.addEventListener('click', () => this.openBackupModal());
     }
 
-    // 關閉條碼出示彈窗
+    // 關閉詳情彈窗
     const closeDetailBtn = document.getElementById('btn-close-detail');
     if (closeDetailBtn) {
       closeDetailBtn.addEventListener('click', () => window.barcodePresenter.closeModal());
     }
 
-    // 扣款計算機按鈕
+    // 快捷扣款按鈕
     document.querySelectorAll('.btn-quick-spend').forEach(btn => {
       btn.addEventListener('click', () => {
         const spend = Number(btn.dataset.amount);
@@ -149,7 +160,7 @@ class AppController {
       });
     });
 
-    // 自訂金額扣款按鈕
+    // 自訂金額扣款
     const btnCustomDeduct = document.getElementById('btn-custom-deduct');
     if (btnCustomDeduct) {
       btnCustomDeduct.addEventListener('click', () => {
@@ -163,7 +174,7 @@ class AppController {
       });
     }
 
-    // 直接改餘額按鈕
+    // 直接改餘額
     const btnEditBalanceDirect = document.getElementById('btn-edit-balance-direct');
     if (btnEditBalanceDirect) {
       btnEditBalanceDirect.addEventListener('click', () => {
@@ -176,7 +187,7 @@ class AppController {
       });
     }
 
-    // 標記為已用完 ($0)
+    // 標記已用完
     const btnMarkDepleted = document.getElementById('btn-mark-depleted');
     if (btnMarkDepleted) {
       btnMarkDepleted.addEventListener('click', () => {
@@ -186,7 +197,7 @@ class AppController {
       });
     }
 
-    // 刪除此卡片
+    // 刪除此卡
     const btnDeleteCurrentCard = document.getElementById('btn-delete-current-card');
     if (btnDeleteCurrentCard) {
       btnDeleteCurrentCard.addEventListener('click', async () => {
@@ -201,11 +212,9 @@ class AppController {
       });
     }
 
-    // 備份彈窗功能
     this.bindBackupEvents();
   }
 
-  // 綁定備份與匯出入相關事件
   bindBackupEvents() {
     const btnExportJSON = document.getElementById('btn-export-json');
     if (btnExportJSON) {
@@ -264,53 +273,47 @@ class AppController {
     }
   }
 
-  // 刷新整體畫面數據與清單
   refreshUI() {
     this.renderStats();
     this.renderCardList();
   }
 
-  // 渲染頂部統計面板
   renderStats() {
     const stats = window.cardStorage.getStats();
 
     const totalBalanceEl = document.getElementById('stat-total-balance');
     const totalCountEl = document.getElementById('stat-total-count');
     const activeCountEl = document.getElementById('stat-active-count');
-    const depletedCountEl = document.getElementById('stat-depleted-count');
     const todaySpentEl = document.getElementById('stat-today-spent');
 
     if (totalBalanceEl) totalBalanceEl.textContent = `$${stats.totalBalance.toLocaleString()}`;
     if (totalCountEl) totalCountEl.textContent = stats.totalCount;
     if (activeCountEl) activeCountEl.textContent = stats.activeCount;
-    if (depletedCountEl) depletedCountEl.textContent = stats.depletedCount;
     if (todaySpentEl) todaySpentEl.textContent = `$${stats.todaySpent}`;
   }
 
-  // 渲染卡片清單
   renderCardList() {
     const container = document.getElementById('cards-grid');
     if (!container) return;
 
     let cards = window.cardStorage.getCards();
 
-    // 1. 篩選 (全部 / 使用中 / 已用完)
     if (this.currentFilter === 'active') {
       cards = cards.filter(c => c.balance > 0);
     } else if (this.currentFilter === 'depleted') {
       cards = cards.filter(c => c.balance <= 0);
     }
 
-    // 2. 關鍵字搜尋
     if (this.searchQuery) {
       cards = cards.filter(c => 
         (c.code && c.code.toLowerCase().includes(this.searchQuery)) ||
+        (c.code1 && c.code1.toLowerCase().includes(this.searchQuery)) ||
+        (c.code2 && c.code2.toLowerCase().includes(this.searchQuery)) ||
         (c.name && c.name.toLowerCase().includes(this.searchQuery)) ||
         (c.note && c.note.toLowerCase().includes(this.searchQuery))
       );
     }
 
-    // 3. 排序
     cards.sort((a, b) => {
       if (this.currentSort === 'newest') return new Date(b.updatedAt) - new Date(a.updatedAt);
       if (this.currentSort === 'balance-desc') return b.balance - a.balance;
@@ -319,7 +322,6 @@ class AppController {
       return 0;
     });
 
-    // 4. 空狀態處理
     if (cards.length === 0) {
       container.innerHTML = `
         <div class="empty-state">
@@ -332,11 +334,12 @@ class AppController {
       return;
     }
 
-    // 5. 渲染卡片 HTML
     container.innerHTML = cards.map(card => {
       const isDepleted = card.balance <= 0;
-      const formattedCode = window.barcodePresenter.formatCardCode(card.code);
+      const primaryCode = card.code1 || card.code;
+      const formattedCode = window.barcodePresenter.formatCardCode(primaryCode);
       const percent = card.faceValue > 0 ? Math.min(100, Math.round((card.balance / card.faceValue) * 100)) : 0;
+      const isDual = Boolean(card.code2);
 
       return `
         <div class="card-item ${isDepleted ? 'card-depleted' : ''}" onclick="window.barcodePresenter.openModal('${card.id}')">
@@ -346,6 +349,7 @@ class AppController {
             <div class="card-title-group">
               <span class="card-brand-badge">7-11</span>
               <span class="card-name-text">${this.escapeHTML(card.name)}</span>
+              ${isDual ? '<span class="badge-dual-tag">雙段條碼</span>' : ''}
             </div>
             <span class="card-status-pill ${isDepleted ? 'status-depleted' : 'status-active'}">
               ${isDepleted ? '已用完' : '使用中'}
@@ -354,11 +358,11 @@ class AppController {
 
           <div class="card-code-display">
             <span class="code-digits">${formattedCode}</span>
+            ${card.code2 ? `<span class="code-sub-badge">檢核: ${card.code2}</span>` : ''}
           </div>
 
-          <!-- 條碼縮圖外觀 -->
           <div class="card-barcode-preview">
-            <svg class="mini-barcode-svg" data-code="${card.code}" height="38"></svg>
+            <svg class="mini-barcode-svg" data-code="${primaryCode}" height="36"></svg>
           </div>
 
           <div class="card-balance-row">
@@ -383,16 +387,14 @@ class AppController {
       `;
     }).join('');
 
-    // 渲染卡片內的迷你條碼
     setTimeout(() => {
       container.querySelectorAll('.mini-barcode-svg').forEach(svg => {
         const code = svg.dataset.code;
-        window.barcodePresenter.renderBarcode(svg, code);
+        window.barcodePresenter.renderBarcode(svg, code, 'CODE128', 36);
       });
     }, 50);
   }
 
-  // 開啟相機掃描彈窗
   async openScannerModal() {
     const modal = document.getElementById('scanner-modal');
     if (!modal) return;
@@ -403,6 +405,8 @@ class AppController {
     const liveCountEl = document.getElementById('scanner-live-count');
     if (liveCountEl) liveCountEl.textContent = '0';
 
+    this.updateScannerStepHint('請對準第 1 段「卡號條碼」');
+
     const trayEl = document.getElementById('scanner-recent-tray');
     if (trayEl) trayEl.innerHTML = '<div class="tray-placeholder">對準條碼即可自動連續掃入...</div>';
 
@@ -411,30 +415,46 @@ class AppController {
       await window.cardScanner.start(
         'scanner-reader',
         (result) => this.handleScanResult(result),
-        (err) => console.log('掃描中幀錯 (略過):', err)
+        () => {}
       );
     } catch (e) {
       this.showToast('❌ 無法開啟相機：' + (e.message || '請確認已授予相機權限'), 'error');
     }
   }
 
-  // 處理相機即時掃描結果
+  updateScannerStepHint(text, isStep2 = false) {
+    const hintEl = document.getElementById('scanner-step-hint');
+    const skipBtn = document.getElementById('btn-skip-step2');
+    if (hintEl) {
+      hintEl.textContent = text;
+      hintEl.classList.toggle('step2-active', isStep2);
+    }
+    if (skipBtn) {
+      skipBtn.style.display = isStep2 ? 'inline-block' : 'none';
+    }
+  }
+
   handleScanResult(res) {
     const liveCountEl = document.getElementById('scanner-live-count');
     const trayEl = document.getElementById('scanner-recent-tray');
 
-    if (res.status === 'success') {
+    if (res.status === 'step1_done') {
+      this.updateScannerStepHint('📍 已讀取卡號！請接著對準「第 2 段檢核碼」', true);
+      this.showToast(res.message, 'info');
+    } else if (res.status === 'success') {
       if (liveCountEl) liveCountEl.textContent = res.batchCount;
+      this.updateScannerStepHint(window.cardScanner.scanMode === 'dual' ? '請對準下一張的第 1 段「卡號條碼」' : '對準條碼即可自動存入', false);
 
-      // 在底部預覽列滑入新卡片標籤
       if (trayEl) {
         const placeholder = trayEl.querySelector('.tray-placeholder');
         if (placeholder) placeholder.remove();
 
         const pill = document.createElement('div');
         pill.className = 'scanned-mini-card animate-slide-in';
+        const displayCode = res.card.code1 || res.card.code;
         pill.innerHTML = `
-          <span class="scanned-code">...${res.code.slice(-6)}</span>
+          <span class="scanned-code">...${displayCode.slice(-6)}</span>
+          ${res.card.code2 ? '<span class="badge-mini-dual">雙段</span>' : ''}
           <span class="scanned-val">+$${res.card.faceValue}</span>
         `;
         trayEl.prepend(pill);
@@ -447,7 +467,6 @@ class AppController {
     }
   }
 
-  // 關閉相機掃描彈窗
   async closeScannerModal() {
     const modal = document.getElementById('scanner-modal');
     if (modal) modal.classList.remove('active');
@@ -456,16 +475,17 @@ class AppController {
     this.refreshUI();
   }
 
-  // 開啟手動新增卡片彈窗
   openManualAddModal() {
-    const code = prompt('請輸入或貼上 7-11 商品卡條碼：');
-    if (!code || !code.trim()) return;
+    const code1 = prompt('【第一段】請輸入 7-11 商品卡主卡號條碼：');
+    if (!code1 || !code1.trim()) return;
 
+    const code2 = prompt('【第二段】請輸入檢核碼條碼 (若無可留空)：', '');
     const faceVal = prompt('請輸入該卡片面額 (預設 100)：', '100');
     const numFaceVal = Number(faceVal) || 100;
 
     window.cardStorage.addCard({
-      code: code.trim(),
+      code1: code1.trim(),
+      code2: code2 ? code2.trim() : '',
       faceValue: numFaceVal,
       balance: numFaceVal,
       note: '手動輸入新增'
@@ -477,7 +497,6 @@ class AppController {
     });
   }
 
-  // 開啟備份資料彈窗
   openBackupModal() {
     const modal = document.getElementById('backup-modal');
     if (modal) {
@@ -486,14 +505,12 @@ class AppController {
     }
   }
 
-  // 關閉備份資料彈窗
   closeBackupModal() {
     const modal = document.getElementById('backup-modal');
     if (modal) modal.classList.remove('active');
     document.body.style.overflow = '';
   }
 
-  // 下載檔案輔助工具
   downloadFile(content, fileName, mimeType) {
     const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
@@ -506,7 +523,6 @@ class AppController {
     URL.revokeObjectURL(url);
   }
 
-  // 顯示 Toast 浮動提示
   showToast(message, type = 'info') {
     let container = document.getElementById('toast-container');
     if (!container) {
@@ -526,7 +542,6 @@ class AppController {
     }, 2800);
   }
 
-  // 簡易 HTML 轉義防止 XSS
   escapeHTML(str) {
     return String(str || '').replace(/[&<>'"]/g, 
       tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
@@ -534,7 +549,6 @@ class AppController {
   }
 }
 
-// 實例化並在 DOMContentLoaded 時啟動
 window.app = new AppController();
 document.addEventListener('DOMContentLoaded', () => {
   window.app.init();
