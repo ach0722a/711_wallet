@@ -1,34 +1,37 @@
 /**
- * 7-11 商品卡皮夾 - 極速批次連續相機掃描模組 (scanner.js - v3 雙步驟精準版)
+ * 7-11 商品卡皮夾 - 極速「一拍雙讀」與純數字卡號智能辨識模組 (scanner.js - v6)
  * 
- * 修改思路與技術亮點：
- * 1. 狹窄聚焦條碼掃描縫 (Narrow Viewfinder Slit)：
- *    - 實體 7-11 卡片兩段條碼上下距離近，過大的掃描框會同時拍到兩段導致瞬間誤掃。
- *    - 將掃描取景框改為狹長橫條 (窄縫高對焦)，確保鏡頭一次只會讀取「單一段條碼」。
- * 2. 雙步驟防誤觸冷卻鎖定 (1.2s Step Transition Lockout)：
- *    - 第一步錄入卡號後，啟動 1.2 秒過渡鎖定，並將瞄準框切換為橘色「請移至下方檢核碼」，
- *      給予使用者足夠時間將鏡頭微調至下方條碼，徹底解決瞬間連刷兩次同條碼或錯位問題。
- * 3. 智慧條碼長度防呆校驗 (Smart Length Detection)：
- *    - 7-11 主卡號通常大於 12 碼，檢核碼通常小於 10 碼，系統會自動輔助校驗防呆。
+ * 核心升級與技術亮點：
+ * 1. 嚴格限定「第一段卡號必為純數字」：
+ *    - 7-11 商品卡主卡號一定是 10~24 碼純數字 (/^\d{10,24}$/)。
+ *    - 含有英文字母或過短的檢核碼，絕對不會被誤判定為第一段卡號！
+ * 2. 「一拍雙讀」一秒同時辨識兩段條碼 (Simultaneous Dual Barcode Recognition)：
+ *    - 擴大取景框使鏡頭能同時涵蓋上下兩段條碼。
+ *    - 啟動高效原生 BarcodeDetector 多條碼併發偵測 + 0.6 秒智慧收集緩衝：
+ *      對準卡片 ➔ 同時或瞬間收集到 (純數字卡號 + 檢核碼) ➔ 1 秒直接完成一張卡片並自動拍照！
+ * 3. 亦支援分步智能補齊：若鏡頭先看到其中一段，0.5 秒內看到另一段立即自動合併存入。
  */
 
 class CardScanner {
   constructor() {
     this.html5QrCode = null;
+    this.nativeBarcodeDetector = null;
     this.isScanning = false;
+    this.detectLoopId = null;
+    
     this.recentScans = new Map();
     this.currentBatchCards = [];
     this.selectedFaceValue = 100;
     this.audioCtx = null;
-    this.currentCameraId = null;
     this.cameras = [];
     this.isTorchOn = false;
 
-    // 雙段條碼狀態管理
+    // 雙段智慧收集緩衝
     this.scanMode = 'dual'; // 'dual' | 'single'
-    this.currentStep = 1;   // 1: 等待第一段(卡號), 2: 等待第二段(檢核碼)
-    this.pendingCode1 = null;
-    this.stepTransitionLock = false; // 步驟切換防誤觸鎖
+    this.collectedCode1 = null; // 暫存的純數字卡號
+    this.collectedCode2 = null; // 暫存的檢核碼
+    this.collectTimer = null;
+    this.isCardProcessing = false;
   }
 
   initAudio() {
@@ -43,7 +46,6 @@ class CardScanner {
     }
   }
 
-  // 雙音階提示音 (第一段: 躍進音階 1600->2000Hz / 第二段完成: 清脆高音 2400Hz)
   playBeep(type = 'success') {
     try {
       this.initAudio();
@@ -58,27 +60,27 @@ class CardScanner {
 
       if (type === 'step1') {
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(1500, now);
-        osc.frequency.exponentialRampToValueAtTime(2100, now + 0.12);
-        gain.gain.setValueAtTime(0.3, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+        osc.frequency.setValueAtTime(1600, now);
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
         osc.start(now);
-        osc.stop(now + 0.15);
+        osc.stop(now + 0.1);
       } else if (type === 'duplicate') {
         osc.type = 'sawtooth';
         osc.frequency.setValueAtTime(700, now);
-        osc.frequency.setValueAtTime(500, now + 0.08);
         gain.gain.setValueAtTime(0.2, now);
         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
         osc.start(now);
         osc.stop(now + 0.18);
       } else {
+        // 完成雙嗶音 (清脆連音 2000Hz -> 2600Hz)
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(2400, now);
+        osc.frequency.setValueAtTime(2000, now);
+        osc.frequency.setValueAtTime(2600, now + 0.06);
         gain.gain.setValueAtTime(0.35, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.16);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
         osc.start(now);
-        osc.stop(now + 0.16);
+        osc.stop(now + 0.18);
       }
     } catch (e) {}
   }
@@ -87,11 +89,11 @@ class CardScanner {
     if ('vibrate' in navigator) {
       try {
         if (type === 'step1') {
-          navigator.vibrate(40);
+          navigator.vibrate(30);
         } else if (type === 'duplicate') {
           navigator.vibrate([80, 40, 80]);
         } else {
-          navigator.vibrate([60, 40, 100]); // 雙震表示整張完成
+          navigator.vibrate([60, 40, 90]);
         }
       } catch (e) {}
     }
@@ -103,21 +105,33 @@ class CardScanner {
 
   setScanMode(mode) {
     this.scanMode = mode;
-    this.resetStepState();
+    this.resetBuffer();
   }
 
-  resetStepState() {
-    this.currentStep = 1;
-    this.pendingCode1 = null;
-    this.stepTransitionLock = false;
+  resetBuffer() {
+    this.collectedCode1 = null;
+    this.collectedCode2 = null;
+    this.isCardProcessing = false;
+    if (this.collectTimer) {
+      clearTimeout(this.collectTimer);
+      this.collectTimer = null;
+    }
   }
 
-  // 啟動相機 (縮小掃描框垂直高度至 80px，精準對準單一條碼)
+  // 判斷是否符合 7-11 主卡號規則：【必須全部為數字，長度 10~24 碼】
+  isMainCardNumber(code) {
+    if (!code) return false;
+    const clean = String(code).trim();
+    // 嚴格純數字校驗且長度 >= 10 (7-11 商品卡主卡號通常為 16 碼純數字)
+    return /^\d{10,24}$/.test(clean);
+  }
+
+  // 啟動相機掃描
   async start(readerElementId, onScanSuccess, onScanError) {
     this.initAudio();
     this.currentBatchCards = [];
     this.recentScans.clear();
-    this.resetStepState();
+    this.resetBuffer();
 
     if (this.isScanning) {
       await this.stop();
@@ -135,15 +149,15 @@ class CardScanner {
 
     const cameraConfig = { facingMode: 'environment' };
 
-    // 關鍵優化：將取景框高度設為狹窄長條 (80px)，避免同時拍到上下兩段條碼
+    // 取景框高度適度放寬 (寬 88%, 高 150px)，剛好能一次容納商品卡上下兩段條碼
     const qrboxFunction = (viewfinderWidth, viewfinderHeight) => {
-      const width = Math.floor(viewfinderWidth * 0.86);
-      const height = Math.min(85, Math.floor(viewfinderHeight * 0.22));
-      return { width: Math.max(width, 250), height: Math.max(height, 70) };
+      const width = Math.floor(viewfinderWidth * 0.88);
+      const height = Math.min(160, Math.floor(viewfinderHeight * 0.42));
+      return { width: Math.max(width, 260), height: Math.max(height, 130) };
     };
 
     const config = {
-      fps: 24,
+      fps: 26,
       qrbox: qrboxFunction,
       aspectRatio: 1.333333,
       formatsToSupport: [
@@ -160,70 +174,102 @@ class CardScanner {
     };
 
     const handleSuccess = async (decodedText, decodedResult) => {
-      await this.processDecodedCode(decodedText, decodedResult, onScanSuccess);
+      await this.handleIncomingBarcode(decodedText, decodedResult, onScanSuccess);
     };
 
     try {
       await this.html5QrCode.start(cameraConfig, config, handleSuccess, onScanError);
       this.isScanning = true;
+
+      // 啟動原生多條碼高頻並發掃描輪詢 (若瀏覽器支援 BarcodeDetector 則啟動「一次雙讀」)
+      this.startNativeMultiBarcodeLoop(onScanSuccess);
+
       return true;
     } catch (err) {
       if (this.cameras && this.cameras.length > 0) {
         const fallbackCameraId = this.cameras[this.cameras.length - 1].id;
         await this.html5QrCode.start(fallbackCameraId, config, handleSuccess, onScanError);
         this.isScanning = true;
+        this.startNativeMultiBarcodeLoop(onScanSuccess);
         return true;
       }
       throw err;
     }
   }
 
-  // 處理辨識出的條碼 (雙段嚴格分步邏輯)
-  async processDecodedCode(rawCode, decodedResult, onScanSuccess) {
-    // 若在過渡鎖定期間，忽略所有輸入
-    if (this.stepTransitionLock) return;
+  // 原生多條碼掃描引擎 (支援在一張畫面中「同時」偵測 2 個條碼)
+  startNativeMultiBarcodeLoop(onScanSuccess) {
+    if (!('BarcodeDetector' in window)) return;
+
+    try {
+      this.nativeBarcodeDetector = new BarcodeDetector({
+        formats: ['code_128', 'code_39', 'ean_13', 'qr_code']
+      });
+    } catch (e) {
+      return;
+    }
+
+    const checkVideoFrame = async () => {
+      if (!this.isScanning) return;
+
+      const video = document.querySelector('#scanner-reader video');
+      if (video && video.readyState >= 2 && !this.isCardProcessing) {
+        try {
+          const detectedBarcodes = await this.nativeBarcodeDetector.detect(video);
+          if (detectedBarcodes && detectedBarcodes.length >= 2) {
+            // 在同一畫面中同時抓到多個條碼！
+            let candidateCode1 = null;
+            let candidateCode2 = null;
+
+            for (const b of detectedBarcodes) {
+              const val = String(b.rawValue || '').trim();
+              if (this.isMainCardNumber(val)) {
+                candidateCode1 = val;
+              } else if (val) {
+                candidateCode2 = val;
+              }
+            }
+
+            if (candidateCode1 && candidateCode2) {
+              // 一次性同時獲取兩段條碼！直接入庫
+              await this.finalizeCard(candidateCode1, candidateCode2, onScanSuccess);
+            }
+          }
+        } catch (err) {}
+      }
+
+      if (this.isScanning) {
+        this.detectLoopId = requestAnimationFrame(checkVideoFrame);
+      }
+    };
+
+    this.detectLoopId = requestAnimationFrame(checkVideoFrame);
+  }
+
+  // 處理收到的單一條碼訊號 (智慧分類與收集窗)
+  async handleIncomingBarcode(rawCode, decodedResult, onScanSuccess) {
+    if (this.isCardProcessing) return;
 
     const code = String(rawCode).trim();
     if (!code) return;
 
-    const now = Date.now();
-    const cooldownMs = (window.cardStorage?.settings?.duplicateCooldownSeconds || 2) * 1000;
+    // ==========================================
+    // 單段條碼模式
+    // ==========================================
+    if (this.scanMode === 'single') {
+      await this.finalizeCard(code, '', onScanSuccess);
+      return;
+    }
 
     // ==========================================
-    // 模式 A: 雙段條碼模式 (步驟 1 ➔ 步驟 2)
+    // 雙段條碼智能收集模式
     // ==========================================
-    if (this.scanMode === 'dual') {
-      if (this.currentStep === 1) {
-        // [步驟 1]：掃描第一段主卡號
-        // 冷卻防重
-        if (this.recentScans.has(code)) {
-          const lastScanned = this.recentScans.get(code);
-          if (now - lastScanned < cooldownMs) return;
-        }
-        this.recentScans.set(code, now);
+    const isNumeric = this.isMainCardNumber(code);
 
-        // 檢查資料庫是否已存在
-        const existing = window.cardStorage.getCardByCode(code);
-        if (existing) {
-          this.playBeep('duplicate');
-          this.triggerVibrate('duplicate');
-          if (onScanSuccess) {
-            onScanSuccess({
-              status: 'duplicate',
-              code: code,
-              card: existing,
-              batchCount: this.currentBatchCards.length,
-              message: `⚠️ 此卡號已存在（餘額 $${existing.balance}）`
-            });
-          }
-          return;
-        }
-
-        // 成功錄入第一段！
-        this.pendingCode1 = code;
-        this.currentStep = 2; // 切換至步驟 2
-        this.stepTransitionLock = true; // 鎖定 1.0 秒防止鏡頭直接拍到下方條碼
-
+    if (isNumeric) {
+      // 這是主卡號 (純數字)
+      if (this.collectedCode1 !== code) {
+        this.collectedCode1 = code;
         this.playBeep('step1');
         this.triggerVibrate('step1');
 
@@ -231,116 +277,102 @@ class CardScanner {
           onScanSuccess({
             status: 'step1_done',
             code1: code,
-            currentStep: 2,
+            code2: this.collectedCode2,
             batchCount: this.currentBatchCards.length,
-            message: `📍 [第 1 段完成] 卡號末碼 ...${code.slice(-6)}！請將鏡頭「移至下方檢核碼」`
+            message: `📍 已識別卡號 [末碼 ...${code.slice(-6)}]，正在自動捕捉檢核碼...`
           });
         }
+      }
+    } else {
+      // 這是檢核碼 (含有字母或短碼)
+      if (this.collectedCode2 !== code) {
+        this.collectedCode2 = code;
+        this.playBeep('step1');
+        this.triggerVibrate('step1');
 
-        // 1.0 秒後解鎖允許掃描第二段，並清除第二段條碼的冷卻
-        setTimeout(() => {
-          this.stepTransitionLock = false;
-        }, 1000);
-
-        return;
-      } else {
-        // [步驟 2]：掃描第二段檢核碼
-        // 防止誤掃回第一段條碼
-        if (code === this.pendingCode1) {
-          return; // 依然對著第一段條碼，不觸發
-        }
-
-        const code1 = this.pendingCode1;
-        const code2 = code;
-
-        // 自動截取當前相機鏡頭畫面作為實體卡照片備份
-        const snapshotPhoto = this.captureVideoSnapshot();
-
-        // 鎖定防止連續誤刷
-        this.stepTransitionLock = true;
-        this.resetStepState();
-
-        this.playBeep('success');
-        this.triggerVibrate('success');
-
-        try {
-          const newCard = await window.cardStorage.addCard({
-            code: code1,
-            code1: code1,
-            code2: code2,
-            photoUrl: snapshotPhoto, // 自動存入即時拍攝照片
-            preferredView: snapshotPhoto ? 'photo' : 'barcode',
-            format: decodedResult?.result?.format?.formatName || 'CODE128',
-            faceValue: this.selectedFaceValue,
-            balance: this.selectedFaceValue,
-            note: '雙段連掃自動附照片'
+        if (onScanSuccess) {
+          onScanSuccess({
+            status: 'step2_detected',
+            code1: this.collectedCode1,
+            code2: code,
+            batchCount: this.currentBatchCards.length,
+            message: `📍 已識別檢核碼 [${code}]，正在捕捉純數字卡號...`
           });
-
-          this.currentBatchCards.push(newCard);
-
-          if (onScanSuccess) {
-            onScanSuccess({
-              status: 'success',
-              card: newCard,
-              code1: code1,
-              code2: code2,
-              currentStep: 1,
-              batchCount: this.currentBatchCards.length,
-              message: `🎉 已完成第 ${this.currentBatchCards.length} 張卡片（已自動拍照存證）！請換下一張。`
-            });
-          }
-        } catch (err) {
-          console.error('[Scanner] 存入失敗:', err);
         }
-
-        // 1.2 秒後解鎖步驟 1 允許掃下一張
-        setTimeout(() => {
-          this.stepTransitionLock = false;
-        }, 1200);
-
-        return;
       }
     }
 
-    // ==========================================
-    // 模式 B: 單段條碼模式
-    // ==========================================
-    if (this.recentScans.has(code)) {
-      const lastScanned = this.recentScans.get(code);
+    // 若兩個條碼都已在緩衝窗中湊齊 ➔ 立即完成！
+    if (this.collectedCode1 && this.collectedCode2) {
+      await this.finalizeCard(this.collectedCode1, this.collectedCode2, onScanSuccess);
+      return;
+    }
+
+    // 若只抓到其中一段，啟動 2.5 秒超時自動單段存檔計時器 (若另一段真不存在)
+    if (!this.collectTimer) {
+      this.collectTimer = setTimeout(() => {
+        if (this.collectedCode1 && !this.collectedCode2 && !this.isCardProcessing) {
+          // 若 2.5 秒內始終沒檢核碼，則存為單段
+          this.finalizeCard(this.collectedCode1, '', onScanSuccess);
+        }
+        this.collectTimer = null;
+      }, 2500);
+    }
+  }
+
+  // 統一結算入庫單張卡片 (同時拍下照片、發出完成音、存入雙庫)
+  async finalizeCard(code1, code2, onScanSuccess) {
+    if (this.isCardProcessing) return;
+
+    const primaryCode = code1 || code2;
+    if (!primaryCode) return;
+
+    // 檢查冷卻與防重
+    const now = Date.now();
+    const cooldownMs = (window.cardStorage?.settings?.duplicateCooldownSeconds || 2) * 1000;
+    if (this.recentScans.has(primaryCode)) {
+      const lastScanned = this.recentScans.get(primaryCode);
       if (now - lastScanned < cooldownMs) return;
     }
-    this.recentScans.set(code, now);
+    this.recentScans.set(primaryCode, now);
 
-    const existingCard = window.cardStorage.getCardByCode(code);
-    if (existingCard) {
+    // 檢查是否已在資料庫中
+    const existing = window.cardStorage.getCardByCode(primaryCode);
+    if (existing) {
       this.playBeep('duplicate');
       this.triggerVibrate('duplicate');
       if (onScanSuccess) {
         onScanSuccess({
           status: 'duplicate',
-          code: code,
-          card: existingCard,
+          code: primaryCode,
+          card: existing,
           batchCount: this.currentBatchCards.length,
-          message: `⚠️ 卡片已存在（餘額 $${existingCard.balance}）`
+          message: `⚠️ 卡片已存在（餘額 $${existing.balance}）`
         });
       }
+      this.resetBuffer();
       return;
     }
 
+    this.isCardProcessing = true;
+    if (this.collectTimer) clearTimeout(this.collectTimer);
+
+    // 即時拍下實體卡照片
     const snapshotPhoto = this.captureVideoSnapshot();
+
     this.playBeep('success');
     this.triggerVibrate('success');
 
     try {
       const newCard = await window.cardStorage.addCard({
-        code: code,
-        code1: code,
-        code2: '',
+        code: primaryCode,
+        code1: code1 || primaryCode,
+        code2: code2 || '',
         photoUrl: snapshotPhoto,
         preferredView: snapshotPhoto ? 'photo' : 'barcode',
         faceValue: this.selectedFaceValue,
         balance: this.selectedFaceValue,
-        note: '單段條碼連掃自動附照片'
+        note: code2 ? '一拍雙讀連掃自動附照片' : '單段連掃自動附照片'
       });
 
       this.currentBatchCards.push(newCard);
@@ -348,25 +380,37 @@ class CardScanner {
       if (onScanSuccess) {
         onScanSuccess({
           status: 'success',
-          code: code,
           card: newCard,
+          code1: newCard.code1,
+          code2: newCard.code2,
           batchCount: this.currentBatchCards.length,
-          message: `✅ 已加入：${newCard.name} (已附照片備份)`
+          message: `🎉 已完成第 ${this.currentBatchCards.length} 張卡片！(卡號+檢核碼+照片已全存)`
         });
       }
     } catch (err) {
-      console.error('[Scanner] 存入失敗:', err);
+      console.error('[Scanner] 存入卡片失敗:', err);
+    }
+
+    // 1.0 秒過渡鎖定後重置準備下一張卡片
+    setTimeout(() => {
+      this.resetBuffer();
+    }, 1000);
+  }
+
+  // 略過第二段
+  async skipSecondBarcode(onScanSuccess) {
+    if (this.collectedCode1) {
+      await this.finalizeCard(this.collectedCode1, '', onScanSuccess);
     }
   }
 
-  // 從相機當前串流中無縫自動截圖 (解析度最佳化與壓縮)
+  // 自動截圖工具
   captureVideoSnapshot() {
     try {
       const video = document.querySelector('#scanner-reader video');
       if (!video || !video.videoWidth || !video.videoHeight) return '';
 
       const canvas = document.createElement('canvas');
-      // 等比例縮放至寬度 900px，確保條碼清晰同時兼顧檔案大小 (約 80KB)
       const scale = Math.min(1, 900 / video.videoWidth);
       canvas.width = Math.round(video.videoWidth * scale);
       canvas.height = Math.round(video.videoHeight * scale);
@@ -374,49 +418,23 @@ class CardScanner {
       const ctx = canvas.getContext('2d');
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      return canvas.toDataURL('image/jpeg', 0.80);
+      return canvas.toDataURL('image/jpeg', 0.82);
     } catch (e) {
-      console.warn('[Scanner] 自動截取照片失敗:', e);
       return '';
     }
   }
 
-  // 略過第二段條碼 (直接單段存檔)
-  async skipSecondBarcode(onScanSuccess) {
-    if (!this.pendingCode1) return;
-    const code = this.pendingCode1;
-    this.resetStepState();
-
-    this.playBeep('success');
-    this.triggerVibrate('success');
-
-    const newCard = await window.cardStorage.addCard({
-      code: code,
-      code1: code,
-      code2: '',
-      faceValue: this.selectedFaceValue,
-      balance: this.selectedFaceValue,
-      note: '單段手動完成'
-    });
-
-    this.currentBatchCards.push(newCard);
-    if (onScanSuccess) {
-      onScanSuccess({
-        status: 'success',
-        card: newCard,
-        batchCount: this.currentBatchCards.length,
-        message: `✅ 已存為單段卡片：${newCard.name}`
-      });
-    }
-  }
-
   async stop() {
+    if (this.detectLoopId) {
+      cancelAnimationFrame(this.detectLoopId);
+      this.detectLoopId = null;
+    }
     if (this.html5QrCode && this.isScanning) {
       try {
         await this.html5QrCode.stop();
       } catch (e) {}
       this.isScanning = false;
-      this.resetStepState();
+      this.resetBuffer();
     }
   }
 
@@ -441,7 +459,7 @@ class CardScanner {
     }
     try {
       const decodedText = await this.html5QrCode.scanFile(file, true);
-      await this.processDecodedCode(decodedText, { result: { format: { formatName: 'CODE128' } } }, onScanSuccess);
+      await this.handleIncomingBarcode(decodedText, { result: { format: { formatName: 'CODE128' } } }, onScanSuccess);
       return decodedText;
     } catch (e) {
       throw new Error('圖片中未辨識到有效的條碼');

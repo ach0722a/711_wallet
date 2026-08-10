@@ -423,49 +423,42 @@ class AppController {
     }
   }
 
-  updateScannerStepHint(text, isStep2 = false) {
+  updateScannerStepHint(text, state = {}) {
     const hintEl = document.getElementById('scanner-step-hint');
-    const skipBtn = document.getElementById('btn-skip-step2');
     const pill1 = document.getElementById('step-pill-1');
     const pill2 = document.getElementById('step-pill-2');
     const reticle = document.getElementById('scanner-reticle');
     const reticleLabel = document.getElementById('reticle-label');
 
-    if (hintEl) {
-      hintEl.textContent = text;
-      hintEl.classList.toggle('step2-active', isStep2);
-    }
-    if (skipBtn) {
-      skipBtn.style.display = isStep2 ? 'inline-block' : 'none';
+    if (hintEl) hintEl.textContent = text;
+
+    if (pill1) {
+      if (state.code1) {
+        pill1.className = 'step-badge-pill step-active';
+        pill1.querySelector('span:last-child').textContent = `① 卡號 ✔ (...${state.code1.slice(-4)})`;
+      } else {
+        pill1.className = 'step-badge-pill';
+        pill1.querySelector('span:last-child').textContent = '① 純數字卡號';
+      }
     }
 
-    if (isStep2) {
-      if (pill1) {
-        pill1.className = 'step-badge-pill';
-        pill1.querySelector('span:last-child').textContent = '① 卡號 (已錄入 ✔)';
-      }
-      if (pill2) {
+    if (pill2) {
+      if (state.code2) {
         pill2.className = 'step-badge-pill step-active-orange';
-      }
-      if (reticle) {
-        reticle.className = 'scanner-reticle-box reticle-step-2';
-      }
-      if (reticleLabel) {
-        reticleLabel.textContent = '請移至【下方檢核碼】';
-      }
-    } else {
-      if (pill1) {
-        pill1.className = 'step-badge-pill step-active';
-        pill1.querySelector('span:last-child').textContent = '① 上方主卡號';
-      }
-      if (pill2) {
+        pill2.querySelector('span:last-child').textContent = `② 檢核碼 ✔ (${state.code2})`;
+      } else {
         pill2.className = 'step-badge-pill';
+        pill2.querySelector('span:last-child').textContent = '② 檢核碼';
       }
-      if (reticle) {
-        reticle.className = 'scanner-reticle-box reticle-step-1';
-      }
-      if (reticleLabel) {
-        reticleLabel.textContent = '請對準【上方卡號】';
+    }
+
+    if (reticleLabel) {
+      if (state.code1 && !state.code2) {
+        reticleLabel.textContent = '捕捉到卡號，正自動辨識檢核碼...';
+      } else if (!state.code1 && state.code2) {
+        reticleLabel.textContent = '捕捉到檢核碼，正自動辨識卡號...';
+      } else {
+        reticleLabel.textContent = '⚡ 對準卡片背面 (自動同時辨識兩段條碼)';
       }
     }
   }
@@ -475,11 +468,14 @@ class AppController {
     const trayEl = document.getElementById('scanner-recent-tray');
 
     if (res.status === 'step1_done') {
-      this.updateScannerStepHint('📍 已讀取卡號！請接著對準「第 2 段檢核碼」', true);
+      this.updateScannerStepHint(res.message, { code1: res.code1, code2: res.code2 });
+      this.showToast(res.message, 'info');
+    } else if (res.status === 'step2_detected') {
+      this.updateScannerStepHint(res.message, { code1: res.code1, code2: res.code2 });
       this.showToast(res.message, 'info');
     } else if (res.status === 'success') {
       if (liveCountEl) liveCountEl.textContent = res.batchCount;
-      this.updateScannerStepHint(window.cardScanner.scanMode === 'dual' ? '請對準下一張的第 1 段「卡號條碼」' : '對準條碼即可自動存入', false);
+      this.updateScannerStepHint('⚡ 對準下一張卡片 (自動同時識別兩段條碼)', {});
 
       if (trayEl) {
         const placeholder = trayEl.querySelector('.tray-placeholder');
@@ -491,6 +487,7 @@ class AppController {
         pill.innerHTML = `
           <span class="scanned-code">...${displayCode.slice(-6)}</span>
           ${res.card.code2 ? '<span class="badge-mini-dual">雙段</span>' : ''}
+          ${res.card.photoUrl ? '<span style="font-size:10px;">📷</span>' : ''}
           <span class="scanned-val">+$${res.card.faceValue}</span>
         `;
         trayEl.prepend(pill);
