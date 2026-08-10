@@ -1,15 +1,18 @@
 /**
- * 7-11 商品卡皮夾 - 條碼出示與快捷扣款計算器模組 (barcode-view.js)
+ * 7-11 商品卡皮夾 - 條碼出示與實體照片管理模組 (barcode-view.js - v4 極簡純淨版)
  * 
- * 升級亮點：
- * 1. 雙段條碼店員出示模式：清晰呈現「[1] 主卡號條碼」與「[2] 檢核驗證碼」，店員依序刷讀 100% 成功。
- * 2. 向量 SVG 高清渲染與防休眠常亮鎖定。
- * 3. 智能消費扣款計算機與歷程追蹤。
+ * 修改思路與設計重點：
+ * 1. 移除所有「給店員確認/請店員掃描」等突兀贅字，回歸超商官方卡片的極簡純淨版面。
+ * 2. 支援「純淨數位條碼」與「實體卡片照片」雙模式一鍵切換：
+ *    - 數位條碼：高對比純黑向量條碼 + 簡潔卡號字體，POS 掃描槍秒讀。
+ *    - 實體照片：直接出示當初拍攝的商品卡真實背面照片（店員若有疑慮可直接刷照片）。
+ * 3. 支援一鍵拍照上傳/替換實體商品卡照片。
  */
 
 class BarcodePresenter {
   constructor() {
     this.currentCard = null;
+    this.currentTab = 'barcode'; // 'barcode' | 'photo'
     this.wakeLock = null;
   }
 
@@ -29,8 +32,8 @@ class BarcodePresenter {
     }
   }
 
-  // 繪製單一條碼
-  renderBarcode(svgElementOrSelector, code, format = 'CODE128', height = 75) {
+  // 繪製向量條碼 (保持乾淨銳利)
+  renderBarcode(svgElementOrSelector, code, format = 'CODE128', height = 65) {
     const el = typeof svgElementOrSelector === 'string' 
       ? document.querySelector(svgElementOrSelector) 
       : svgElementOrSelector;
@@ -45,7 +48,7 @@ class BarcodePresenter {
           width: 2.1,
           height: height,
           displayValue: false,
-          margin: 8,
+          margin: 6,
           background: '#ffffff'
         });
       } else {
@@ -56,11 +59,10 @@ class BarcodePresenter {
     }
   }
 
-  renderFallbackBarcode(svgEl, code, height = 75) {
+  renderFallbackBarcode(svgEl, code, height = 65) {
     const cleanCode = String(code).trim();
     let rects = '';
-    let x = 10;
-    
+    let x = 8;
     for (let i = 0; i < cleanCode.length; i++) {
       const charCode = cleanCode.charCodeAt(i);
       const w1 = (charCode % 3) + 1.8;
@@ -70,83 +72,35 @@ class BarcodePresenter {
       rects += `<rect x="${x}" y="0" width="${w2 * 1.5}" height="${height}" fill="#000"/>`;
       x += w2 * 1.5 + 2;
     }
-
-    svgEl.setAttribute('viewBox', `0 0 ${Math.max(x + 10, 240)} ${height}`);
+    svgEl.setAttribute('viewBox', `0 0 ${Math.max(x + 8, 240)} ${height}`);
     svgEl.innerHTML = `<rect width="100%" height="100%" fill="#fff"/>${rects}`;
   }
 
-  // 開啟卡片詳情與條碼出示彈窗
+  // 開啟卡片詳情
   openModal(cardId) {
     const card = window.cardStorage.getCard(cardId);
     if (!card) return;
 
     this.currentCard = card;
+    this.currentTab = card.photoUrl ? 'photo' : 'barcode';
     this.requestWakeLock();
 
     const modal = document.getElementById('card-detail-modal');
     if (!modal) return;
 
-    // 基本資料
-    document.getElementById('modal-card-name').textContent = card.name || '7-11 商品卡';
+    // 基本資訊
+    document.getElementById('modal-card-name').textContent = card.name || '7-ELEVEN 商品卡';
     document.getElementById('modal-card-balance').textContent = card.balance;
     document.getElementById('modal-card-facevalue').textContent = card.faceValue;
     
     const badgeEl = document.getElementById('modal-card-status-badge');
     if (badgeEl) {
-      badgeEl.textContent = card.balance > 0 ? '可使用' : '已用完';
+      badgeEl.textContent = card.balance > 0 ? '使用中' : '已用完';
       badgeEl.className = `status-badge ${card.balance > 0 ? 'badge-active' : 'badge-depleted'}`;
     }
 
-    // 判斷是否為雙段條碼並動態渲染出示區
-    const code1 = card.code1 || card.code;
-    const code2 = card.code2;
-
-    const barcodeContainer = document.getElementById('modal-barcode-container');
-    if (barcodeContainer) {
-      if (code2) {
-        // 雙段條碼模式 (清晰分列第一段與第二段)
-        barcodeContainer.innerHTML = `
-          <div class="barcode-hint">📱 7-11 結帳時，請店員依序掃描以下【兩段條碼】：</div>
-          
-          <!-- 第一段：主卡號條碼 -->
-          <div class="dual-barcode-section">
-            <div class="dual-barcode-label">
-              <span class="step-num">1</span>
-              <span>第一段：主卡號條碼</span>
-            </div>
-            <svg id="modal-barcode-svg-1" class="cashier-svg"></svg>
-            <div class="barcode-digits-display">${this.formatCardCode(code1)}</div>
-          </div>
-
-          <div class="dual-barcode-divider"></div>
-
-          <!-- 第二段：檢核驗證碼 -->
-          <div class="dual-barcode-section">
-            <div class="dual-barcode-label">
-              <span class="step-num">2</span>
-              <span>第二段：檢核驗證碼</span>
-            </div>
-            <svg id="modal-barcode-svg-2" class="cashier-svg"></svg>
-            <div class="barcode-digits-display">${this.formatCardCode(code2)}</div>
-          </div>
-        `;
-        
-        setTimeout(() => {
-          this.renderBarcode('#modal-barcode-svg-1', code1, card.format, 65);
-          this.renderBarcode('#modal-barcode-svg-2', code2, card.format, 65);
-        }, 30);
-      } else {
-        // 單段條碼模式
-        barcodeContainer.innerHTML = `
-          <div class="barcode-hint">📱 請出示此條碼供 7-11 店員掃描</div>
-          <svg id="modal-barcode-svg-single" class="cashier-svg"></svg>
-          <div class="barcode-digits-display">${this.formatCardCode(code1)}</div>
-        `;
-        setTimeout(() => {
-          this.renderBarcode('#modal-barcode-svg-single', code1, card.format, 85);
-        }, 30);
-      }
-    }
+    // 渲染出示面板 (純淨條碼 or 實體照片)
+    this.renderPresenterContent();
 
     // 渲染歷史紀錄
     this.renderHistoryList(card.history || []);
@@ -156,6 +110,166 @@ class BarcodePresenter {
 
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
+  }
+
+  // 切換出示模式 (條碼 / 照片)
+  switchTab(tab) {
+    this.currentTab = tab;
+    this.renderPresenterContent();
+  }
+
+  // 渲染出示專區內容 (極簡乾淨、無任何多餘提示文字)
+  renderPresenterContent() {
+    const container = document.getElementById('modal-barcode-container');
+    if (!container || !this.currentCard) return;
+
+    const card = this.currentCard;
+    const code1 = card.code1 || card.code;
+    const code2 = card.code2;
+    const hasPhoto = Boolean(card.photoUrl);
+
+    // 頂部模式切換 Tabs (數位條碼 / 實體卡照片)
+    const tabHtml = `
+      <div class="presenter-tab-switch">
+        <button class="presenter-tab-btn ${this.currentTab === 'barcode' ? 'active' : ''}" onclick="window.barcodePresenter.switchTab('barcode')">
+          📊 數位條碼
+        </button>
+        <button class="presenter-tab-btn ${this.currentTab === 'photo' ? 'active' : ''}" onclick="window.barcodePresenter.switchTab('photo')">
+          📷 實體卡照片 ${hasPhoto ? '✔' : ''}
+        </button>
+      </div>
+    `;
+
+    if (this.currentTab === 'photo') {
+      // ==========================================
+      // 實體照片模式 (顯示真實拍攝的卡片背面)
+      // ==========================================
+      if (hasPhoto) {
+        container.innerHTML = `
+          ${tabHtml}
+          <div class="card-photo-wrapper">
+            <img src="${card.photoUrl}" class="card-real-photo" alt="商品卡照片" onclick="window.barcodePresenter.previewPhotoFull('${card.photoUrl}')">
+          </div>
+          <div class="photo-action-row">
+            <label class="btn-retake-photo" style="cursor: pointer;">
+              🔄 重拍/更換照片
+              <input type="file" accept="image/*" capture="environment" style="display:none;" onchange="window.barcodePresenter.handlePhotoUpload(event)">
+            </label>
+          </div>
+        `;
+      } else {
+        container.innerHTML = `
+          ${tabHtml}
+          <div class="card-photo-empty">
+            <div style="font-size: 32px; margin-bottom: 8px;">📷</div>
+            <div style="font-size: 13px; color: #64748b; margin-bottom: 12px;">尚未拍攝此卡片的實體照片</div>
+            <label class="btn-primary" style="cursor: pointer; display: inline-block; padding: 8px 18px; font-size: 13px;">
+              📸 立即拍照存入
+              <input type="file" accept="image/*" capture="environment" style="display:none;" onchange="window.barcodePresenter.handlePhotoUpload(event)">
+            </label>
+          </div>
+        `;
+      }
+    } else {
+      // ==========================================
+      // 數位條碼模式 (純淨高對比、無贅字)
+      // ==========================================
+      if (code2) {
+        // 雙段條碼
+        container.innerHTML = `
+          ${tabHtml}
+          <div class="clean-barcode-card">
+            <!-- 第一段條碼 -->
+            <div class="clean-barcode-row">
+              <svg id="modal-barcode-svg-1" class="clean-svg"></svg>
+              <div class="clean-digits">${this.formatCardCode(code1)}</div>
+            </div>
+
+            <div class="clean-barcode-sep"></div>
+
+            <!-- 第二段條碼 -->
+            <div class="clean-barcode-row">
+              <svg id="modal-barcode-svg-2" class="clean-svg"></svg>
+              <div class="clean-digits">${this.formatCardCode(code2)}</div>
+            </div>
+          </div>
+        `;
+        setTimeout(() => {
+          this.renderBarcode('#modal-barcode-svg-1', code1, card.format, 58);
+          this.renderBarcode('#modal-barcode-svg-2', code2, card.format, 58);
+        }, 30);
+      } else {
+        // 單段條碼
+        container.innerHTML = `
+          ${tabHtml}
+          <div class="clean-barcode-card">
+            <div class="clean-barcode-row">
+              <svg id="modal-barcode-svg-single" class="clean-svg"></svg>
+              <div class="clean-digits">${this.formatCardCode(code1)}</div>
+            </div>
+          </div>
+        `;
+        setTimeout(() => {
+          this.renderBarcode('#modal-barcode-svg-single', code1, card.format, 78);
+        }, 30);
+      }
+    }
+  }
+
+  // 處理拍照或選擇圖片上傳
+  async handlePhotoUpload(e) {
+    const file = e.target.files[0];
+    if (!file || !this.currentCard) return;
+
+    window.app?.showToast('📸 正在儲存卡片照片...', 'info');
+
+    // 將圖片轉換為壓縮的 Base64 DataURL (限制寬度 1200px 節省容量)
+    const dataUrl = await this.compressImage(file, 1200, 0.82);
+    
+    const updated = await window.cardStorage.updateCard(this.currentCard.id, {
+      photoUrl: dataUrl,
+      preferredView: 'photo'
+    });
+
+    this.currentCard = updated;
+    this.currentTab = 'photo';
+    this.renderPresenterContent();
+    window.app?.refreshUI();
+    window.app?.showToast('✅ 卡片照片已成功儲存！', 'success');
+  }
+
+  // 壓縮圖片工具函式
+  compressImage(file, maxWidth = 1200, quality = 0.82) {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let w = img.width;
+          let h = img.height;
+          if (w > maxWidth) {
+            h = Math.round((h * maxWidth) / w);
+            w = maxWidth;
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // 全螢幕照片放大預覽
+  previewPhotoFull(url) {
+    const win = window.open('');
+    if (win) {
+      win.document.write(`<body style="margin:0;background:#000;display:flex;justify-content:center;align-items:center;height:100vh;"><img src="${url}" style="max-width:100%;max-height:100%;"></body>`);
+    }
   }
 
   closeModal() {

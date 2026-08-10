@@ -350,6 +350,7 @@ class AppController {
               <span class="card-brand-badge">7-11</span>
               <span class="card-name-text">${this.escapeHTML(card.name)}</span>
               ${isDual ? '<span class="badge-dual-tag">雙段條碼</span>' : ''}
+              ${card.photoUrl ? '<span class="badge-dual-tag" style="background: rgba(0,129,72,0.2); color: #00FF88; border-color: rgba(0,255,136,0.3);">📷 有照片</span>' : ''}
             </div>
             <span class="card-status-pill ${isDepleted ? 'status-depleted' : 'status-active'}">
               ${isDepleted ? '已用完' : '使用中'}

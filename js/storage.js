@@ -189,7 +189,7 @@ class CardStorage {
     return this.cards.find(c => c.code.trim() === code.trim());
   }
 
-  // 新增卡片 (支援單段或雙段條碼)
+  // 新增卡片 (支援單段/雙段條碼與照片存檔)
   async addCard(data) {
     const now = new Date().toISOString();
     const faceValue = Number(data.faceValue) || Number(this.settings.defaultFaceValue) || 100;
@@ -201,9 +201,11 @@ class CardStorage {
 
     const newCard = {
       id: 'card_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-      code: primaryCode, // 相容主條碼
-      code1: code1,      // 第一段 (卡號)
-      code2: code2,      // 第二段 (檢核碼/密碼)
+      code: primaryCode,
+      code1: code1,
+      code2: code2,
+      photoUrl: data.photoUrl || '', // 支援實體卡照片
+      preferredView: data.preferredView || (data.photoUrl ? 'photo' : 'barcode'), // 'barcode' | 'photo'
       hasDualBarcode: Boolean(code1 && code2),
       format: data.format || 'CODE128',
       name: data.name || `商品卡 ${this.cards.length + 1}`,

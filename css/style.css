@@ -993,74 +993,113 @@ body {
   100% { transform: scale(1.04); }
 }
 
-/* 雙段條碼店員出示樣式 (Dual Barcode Presenter) */
-.dual-barcode-section {
-  padding: 10px 0;
+/* ==========================================================================
+   出示模式升級：極簡純淨條碼 & 實體卡照片 (Clean Barcode & Photo Mode)
+   ========================================================================== */
+
+/* 頂部切換按鈕 (數位條碼 / 實體卡照片) */
+.presenter-tab-switch {
+  display: flex;
+  background: #F1F5F9;
+  border-radius: var(--radius-full);
+  padding: 3px;
+  gap: 4px;
+  margin-bottom: 12px;
 }
 
-.dual-barcode-label {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
+.presenter-tab-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #64748B;
   font-size: 12px;
-  font-weight: 800;
-  color: #1E293B;
-  margin-bottom: 6px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: var(--transition-fast);
 }
 
-.step-num {
+.presenter-tab-btn.active {
   background: #008148;
-  color: white;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
+  color: #FFFFFF;
+  box-shadow: 0 2px 8px rgba(0, 129, 72, 0.3);
+}
+
+/* 純淨條碼白卡容器 (無多餘贅字) */
+.clean-barcode-card {
+  background: #FFFFFF;
+  border-radius: 12px;
+  padding: 14px 10px;
+  text-align: center;
+}
+
+.clean-barcode-row {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
-  font-weight: 900;
 }
 
-.dual-barcode-divider {
-  height: 1px;
-  background: #E2E8F0;
-  margin: 8px 0;
-  position: relative;
-}
-
-.badge-dual-tag {
-  background: rgba(255, 122, 0, 0.2);
-  color: var(--c-orange);
-  font-size: 10px;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 4px;
-  border: 1px solid rgba(255, 122, 0, 0.3);
-}
-
-.code-sub-badge {
-  display: inline-block;
-  background: rgba(255, 255, 255, 0.08);
-  font-size: 11px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  color: var(--c-neon-green);
-  margin-left: 6px;
-}
-
-.badge-mini-dual {
-  background: var(--c-orange);
-  color: white;
-  font-size: 10px;
-  padding: 1px 4px;
-  border-radius: 3px;
-}
-
-.cashier-svg {
+.clean-svg {
   width: 100%;
   max-width: 320px;
   height: auto;
+}
+
+.clean-digits {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 17px;
+  font-weight: 800;
+  color: #0F172A;
+  letter-spacing: 3px;
+  margin-top: 4px;
+}
+
+.clean-barcode-sep {
+  height: 1px;
+  background: #E2E8F0;
+  margin: 12px auto;
+  width: 90%;
+}
+
+/* 實體照片模式樣式 */
+.card-photo-wrapper {
+  background: #0F172A;
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  max-height: 240px;
+  margin-bottom: 8px;
+}
+
+.card-real-photo {
+  width: 100%;
+  height: auto;
+  max-height: 240px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.photo-action-row {
+  text-align: center;
+  margin-top: 6px;
+}
+
+.btn-retake-photo {
+  font-size: 12px;
+  color: #64748B;
+  text-decoration: underline;
+}
+
+.card-photo-empty {
+  background: #F8FAFC;
+  border: 1.5px dashed #CBD5E1;
+  border-radius: 12px;
+  padding: 24px 16px;
+  text-align: center;
 }
 
 /* 餘額卡片與修改 */
