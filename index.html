@@ -31,6 +31,9 @@
         <h1 class="brand-title">商品卡<span>皮夾</span></h1>
       </div>
       <div class="header-actions">
+        <button class="btn-icon-header" id="btn-open-repair" title="條碼修復與圖像還原工具">
+          🛠️
+        </button>
         <button class="btn-icon-header" id="btn-open-backup" title="資料備份與管理">
           💾
         </button>
@@ -237,9 +240,87 @@
 
       <!-- 底部動作 -->
       <div class="sheet-footer-actions">
+        <button class="btn-sheet-action btn-secondary-action" id="btn-repair-current-card">🛠️ 條碼修復</button>
         <button class="btn-sheet-action btn-secondary-action" id="btn-mark-depleted">標記已用完 ($0)</button>
         <button class="btn-sheet-action btn-danger-action" id="btn-delete-current-card">刪除此卡</button>
       </div>
+    </div>
+  </div>
+
+  <!-- =======================================================================
+       條碼修復與模糊照片增強工作室彈窗 (Repair Modal)
+       ======================================================================= -->
+  <div class="modal-overlay" id="repair-modal">
+    <div class="repair-modal-content">
+      <div class="repair-header">
+        <div>
+          <h2 class="repair-title">🛠️ 條碼修復與圖像還原工具</h2>
+          <p class="repair-subtitle">針對模糊反光照片或掃出亂碼 (如 NOR=F XP) 進行多重濾鏡還原與條紋比對</p>
+        </div>
+        <button class="btn-close-sheet" onclick="window.barcodeRepairTool.closeModal()">✕</button>
+      </div>
+
+      <!-- 區塊 1: 照片載入與多重增強濾鏡分析 -->
+      <div class="repair-section-card">
+        <div class="repair-section-header">
+          <span>📷 實體卡片照片分析</span>
+          <label class="btn-repair-upload">
+            📤 選擇/重拍照片
+            <input type="file" accept="image/*" style="display: none;" onchange="window.barcodeRepairTool.handleFileUpload(event)">
+          </label>
+        </div>
+
+        <div id="repair-status-text" class="repair-status-bar">請載入卡片照片或輸入下方亂碼以啟動推論分析</div>
+
+        <div class="repair-photo-box" id="repair-photo-container">
+          <img id="repair-photo-preview" class="repair-img" style="display: none;" alt="卡片照片">
+          <div id="repair-photo-placeholder" class="repair-img-placeholder">
+            點擊上方「選擇/重拍照片」載入卡片，系統將自動套用 6 道濾鏡重試解碼
+          </div>
+          <canvas id="repair-canvas" style="display: none;"></canvas>
+        </div>
+      </div>
+
+      <!-- 區塊 2: 亂碼特徵推論與置換字典 -->
+      <div class="repair-section-card">
+        <div class="repair-section-header">
+          <span>🔍 亂碼推論 (自動計算最可能之 8 碼檢核碼)</span>
+        </div>
+        <div class="repair-input-row">
+          <input type="text" id="repair-garbled-input" class="repair-input" placeholder="貼上掃描到的亂碼 (如 NOR=F XP)...">
+          <button class="btn-primary" style="padding: 0 14px; font-size: 13px;" onclick="window.barcodeRepairTool.generateCandidates(document.getElementById('repair-garbled-input').value)">
+            🧠 重新推論
+          </button>
+        </div>
+
+        <div class="candidates-title">👉 智能推薦候補 8 碼 (點選即時比對條紋)：</div>
+        <div class="candidates-grid" id="repair-candidates-grid">
+          <!-- 動態插入 -->
+        </div>
+      </div>
+
+      <!-- 區塊 3: 視覺條紋比對檢視器 -->
+      <div class="repair-section-card">
+        <div class="repair-section-header">
+          <span>🎯 視覺條紋模擬比對器 (可手動微調)</span>
+        </div>
+        <p style="font-size: 11px; color: var(--text-dim); margin-bottom: 8px;">
+          請核對上方卡片照片中的黑白粗細條紋，是否與下方模擬生成的條碼一致：
+        </p>
+
+        <div class="repair-sim-box">
+          <svg id="repair-simulated-svg"></svg>
+        </div>
+
+        <div class="repair-final-row">
+          <span style="font-size: 13px; font-weight: 700;">修復確認碼：</span>
+          <input type="text" id="repair-final-code" class="repair-input" style="font-weight: 800; letter-spacing: 2px; text-transform: uppercase;" maxlength="8" oninput="window.barcodeRepairTool.handleManualCodeChange(this.value)">
+          <button class="btn-primary" style="background: var(--c-primary); white-space: nowrap;" onclick="window.barcodeRepairTool.applyRepairResult()">
+            ✅ 確定套用修復
+          </button>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -282,9 +363,10 @@
   </div>
 
   <!-- 應用程式邏輯腳本 (附帶版本號破除快取) -->
-  <script src="js/storage.js?v=8.0"></script>
-  <script src="js/scanner.js?v=8.0"></script>
-  <script src="js/barcode-view.js?v=8.0"></script>
-  <script src="js/app.js?v=8.0"></script>
+  <script src="js/storage.js?v=9.0"></script>
+  <script src="js/scanner.js?v=9.0"></script>
+  <script src="js/barcode-view.js?v=9.0"></script>
+  <script src="js/repair-tool.js?v=9.0"></script>
+  <script src="js/app.js?v=9.0"></script>
 </body>
 </html>

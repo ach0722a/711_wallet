@@ -153,6 +153,24 @@ class AppController {
       manualAddBtn.addEventListener('click', () => this.openManualAddModal());
     }
 
+    // 條碼修復工作室按鈕
+    const repairBtn = document.getElementById('btn-open-repair');
+    if (repairBtn) {
+      repairBtn.addEventListener('click', () => window.barcodeRepairTool.openModal());
+    }
+
+    // 從卡片詳情開啟條碼修復
+    const repairCurrentBtn = document.getElementById('btn-repair-current-card');
+    if (repairCurrentBtn) {
+      repairCurrentBtn.addEventListener('click', () => {
+        const current = window.barcodePresenter.currentCard;
+        if (current) {
+          window.barcodePresenter.closeModal();
+          window.barcodeRepairTool.openModal(current.id);
+        }
+      });
+    }
+
     // 備份彈窗
     const backupBtn = document.getElementById('btn-open-backup');
     if (backupBtn) {

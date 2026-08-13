@@ -1419,3 +1419,180 @@ body {
   0% { transform: translateX(-30px); opacity: 0; }
   100% { transform: translateX(0); opacity: 1; }
 }
+
+/* ==========================================================================
+   條碼修復與圖像還原工作室樣式 (Repair Tool Styles)
+   ========================================================================== */
+.repair-modal-content {
+  background: var(--bg-surface);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  max-width: 560px;
+  width: 92%;
+  margin: auto;
+  max-height: 90vh;
+  overflow-y: auto;
+  border: 1px solid var(--border-light);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
+}
+
+.repair-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.repair-title {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.repair-subtitle {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.repair-section-card {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  margin-bottom: 14px;
+}
+
+.repair-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 10px;
+}
+
+.btn-repair-upload {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-light);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text-main);
+}
+
+.repair-status-bar {
+  background: rgba(0, 0, 0, 0.4);
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.repair-photo-box {
+  background: #0B1120;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 120px;
+  max-height: 200px;
+}
+
+.repair-img {
+  max-width: 100%;
+  max-height: 200px;
+  object-fit: contain;
+}
+
+.repair-img-placeholder {
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: center;
+  padding: 20px;
+}
+
+.repair-input-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.repair-input {
+  flex: 1;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  color: white;
+  font-size: 13px;
+}
+
+.candidates-title {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.candidates-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.candidate-card-pill {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.candidate-card-pill.active {
+  background: rgba(0, 129, 72, 0.25);
+  border-color: var(--c-neon-green);
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.25);
+}
+
+.cand-text {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-main);
+  letter-spacing: 1px;
+}
+
+.cand-badge {
+  font-size: 10px;
+  color: var(--c-neon-green);
+}
+
+.repair-sim-box {
+  background: #FFFFFF;
+  border-radius: 8px;
+  padding: 10px;
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+#repair-simulated-svg {
+  width: 100%;
+  max-width: 300px;
+  height: 55px;
+}
+
+.repair-final-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
