@@ -189,29 +189,38 @@ class CardStorage {
     return this.cards.find(c => c.code.trim() === code.trim());
   }
 
-  // 新增卡片 (支援單段/雙段條碼與照片存檔)
+  // 新增卡片 (支援金額卡 money 與商品兌換券 item)
   async addCard(data) {
     const now = new Date().toISOString();
-    const faceValue = Number(data.faceValue) || Number(this.settings.defaultFaceValue) || 100;
-    const balance = data.balance !== undefined ? Number(data.balance) : faceValue;
+    const cardType = data.cardType || (data.itemName ? 'item' : 'money'); // 'money' | 'item'
+    const faceValue = cardType === 'money' ? (Number(data.faceValue) || Number(this.settings.defaultFaceValue) || 100) : 0;
+    const balance = cardType === 'money' ? (data.balance !== undefined ? Number(data.balance) : faceValue) : 0;
+    const isRedeemed = Boolean(data.isRedeemed);
 
     const code1 = String(data.code1 || data.code || '').trim();
     const code2 = String(data.code2 || '').trim();
     const primaryCode = code1 || code2;
+
+    const defaultName = cardType === 'item' 
+      ? (data.itemName || `商品兌換券 #${this.cards.length + 1}`) 
+      : `商品卡 #${this.cards.length + 1}`;
 
     const newCard = {
       id: 'card_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
       code: primaryCode,
       code1: code1,
       code2: code2,
-      photoUrl: data.photoUrl || '', // 支援實體卡照片
-      preferredView: data.preferredView || (data.photoUrl ? 'photo' : 'barcode'), // 'barcode' | 'photo'
+      cardType: cardType, // 'money' 金額型 | 'item' 商品兌換型
+      itemName: data.itemName || (cardType === 'item' ? '商品兌換' : ''),
+      isRedeemed: isRedeemed, // 商品券是否已使用
+      photoUrl: data.photoUrl || '',
+      preferredView: data.preferredView || (data.photoUrl ? 'photo' : 'barcode'),
       hasDualBarcode: Boolean(code1 && code2),
       format: data.format || 'CODE128',
-      name: data.name || `商品卡 ${this.cards.length + 1}`,
+      name: data.name || defaultName,
       faceValue: faceValue,
       balance: balance,
-      status: balance > 0 ? 'active' : 'depleted',
+      status: cardType === 'item' ? (isRedeemed ? 'depleted' : 'active') : (balance > 0 ? 'active' : 'depleted'),
       note: data.note || '',
       createdAt: now,
       updatedAt: now,
@@ -221,7 +230,7 @@ class CardStorage {
           type: 'create',
           amount: faceValue,
           balanceAfter: balance,
-          note: '初始建立卡片'
+          note: cardType === 'item' ? `建立商品兌換券: ${data.name || defaultName}` : '初始建立卡片'
         }
       ]
     };
@@ -229,6 +238,33 @@ class CardStorage {
     this.cards.unshift(newCard);
     await this.persist();
     return newCard;
+  }
+
+  // 重新命名卡片/商品名稱
+  async renameCard(id, newName) {
+    const card = this.getCard(id);
+    if (!card) return null;
+    const clean = String(newName || '').trim();
+    if (!clean) return card;
+
+    return await this.updateCard(id, {
+      name: clean,
+      itemName: card.cardType === 'item' ? clean : card.itemName,
+      historyNote: `修改名稱為: ${clean}`
+    });
+  }
+
+  // 切換商品券兌換狀態 (已使用 / 未使用)
+  async toggleRedeem(id, forceState = null) {
+    const card = this.getCard(id);
+    if (!card) return null;
+
+    const nextState = forceState !== null ? forceState : !card.isRedeemed;
+    return await this.updateCard(id, {
+      isRedeemed: nextState,
+      status: nextState ? 'depleted' : 'active',
+      historyNote: nextState ? '標記商品為【已使用 / 已兌換】' : '重新標記為【未使用】'
+    });
   }
 
   // 批次快速新增卡片 (針對連掃 20 張優化)
@@ -361,11 +397,17 @@ class CardStorage {
   // 統計總覽數據
   getStats() {
     const totalCount = this.cards.length;
-    const activeCards = this.cards.filter(c => c.balance > 0);
-    const depletedCards = this.cards.filter(c => c.balance <= 0);
+    const activeCards = this.cards.filter(c => c.status === 'active');
+    const depletedCards = this.cards.filter(c => c.status === 'depleted');
 
-    const totalBalance = this.cards.reduce((sum, c) => sum + (Number(c.balance) || 0), 0);
-    const totalFaceValue = this.cards.reduce((sum, c) => sum + (Number(c.faceValue) || 0), 0);
+    const moneyCards = this.cards.filter(c => c.cardType !== 'item');
+    const itemCards = this.cards.filter(c => c.cardType === 'item');
+
+    const totalBalance = moneyCards.reduce((sum, c) => sum + (Number(c.balance) || 0), 0);
+    const totalFaceValue = moneyCards.reduce((sum, c) => sum + (Number(c.faceValue) || 0), 0);
+
+    const itemsTotal = itemCards.length;
+    const itemsPending = itemCards.filter(c => !c.isRedeemed).length;
 
     // 今日消費金額計算
     const todayStr = new Date().toISOString().slice(0, 10);
@@ -386,7 +428,9 @@ class CardStorage {
       depletedCount: depletedCards.length,
       totalBalance,
       totalFaceValue,
-      todaySpent
+      todaySpent,
+      itemsTotal,
+      itemsPending
     };
   }
 

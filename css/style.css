@@ -199,8 +199,8 @@ body {
 
 .hero-sub-stats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
   padding-top: 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
@@ -1595,4 +1595,93 @@ body {
   align-items: center;
   gap: 8px;
 }
+
+/* ==========================================================================
+   商品兌換券 (Item Voucher) 與名稱編輯樣式
+   ========================================================================== */
+.sheet-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-edit-title-pencil {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-light);
+  color: var(--text-main);
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.btn-edit-title-pencil:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: var(--c-neon-green);
+}
+
+/* 卡片清單中的商品券排版 */
+.card-item-voucher-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-top: 8px;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+}
+
+.voucher-tag {
+  font-size: 10px;
+  color: #FBBF24;
+  font-weight: 700;
+}
+
+.voucher-name {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-main);
+  margin-top: 2px;
+}
+
+/* 商品券彈窗中的「標記已使用」按鈕面板 */
+.item-redeem-panel {
+  margin-top: 14px;
+  margin-bottom: 14px;
+}
+
+.btn-redeem-action {
+  width: 100%;
+  padding: 14px;
+  border-radius: var(--radius-md);
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-redeemed-do {
+  background: linear-gradient(135deg, #008148, #00B16A);
+  color: #FFFFFF;
+  box-shadow: 0 4px 15px rgba(0, 129, 72, 0.4);
+}
+
+.btn-redeemed-do:active {
+  transform: scale(0.98);
+}
+
+.btn-redeemed-undo {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-light);
+  color: var(--text-muted);
+}
+
 

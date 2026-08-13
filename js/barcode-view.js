@@ -82,21 +82,52 @@ class BarcodePresenter {
     if (!card) return;
 
     this.currentCard = card;
-    this.currentTab = 'barcode'; // 預設永遠以「純淨數位條碼」開啟，方便店員秒刷！
+    this.currentTab = 'barcode';
     this.requestWakeLock();
 
     const modal = document.getElementById('card-detail-modal');
     if (!modal) return;
 
-    // 基本資訊
-    document.getElementById('modal-card-name').textContent = card.name || '7-ELEVEN 商品卡';
-    document.getElementById('modal-card-balance').textContent = card.balance;
-    document.getElementById('modal-card-facevalue').textContent = card.faceValue;
+    const isItem = card.cardType === 'item';
+
+    // 卡片名稱與編輯提示
+    document.getElementById('modal-card-name').textContent = card.name || (isItem ? '商品兌換券' : '7-ELEVEN 商品卡');
     
+    // 狀態標籤
     const badgeEl = document.getElementById('modal-card-status-badge');
     if (badgeEl) {
-      badgeEl.textContent = card.balance > 0 ? '使用中' : '已用完';
-      badgeEl.className = `status-badge ${card.balance > 0 ? 'badge-active' : 'badge-depleted'}`;
+      if (isItem) {
+        badgeEl.textContent = card.isRedeemed ? '已使用' : '未兌換 (可出示)';
+        badgeEl.className = `status-badge ${card.isRedeemed ? 'badge-depleted' : 'badge-active'}`;
+      } else {
+        badgeEl.textContent = card.balance > 0 ? '使用中' : '已用完';
+        badgeEl.className = `status-badge ${card.balance > 0 ? 'badge-active' : 'badge-depleted'}`;
+      }
+    }
+
+    // 金額面板 vs 商品券兌換面板切換
+    const balancePanel = document.getElementById('modal-balance-panel');
+    const itemActionPanel = document.getElementById('modal-item-action-panel');
+    const moneyDeductBox = document.getElementById('modal-deduct-calculator');
+
+    if (isItem) {
+      if (balancePanel) balancePanel.style.display = 'none';
+      if (moneyDeductBox) moneyDeductBox.style.display = 'none';
+      if (itemActionPanel) {
+        itemActionPanel.style.display = 'block';
+        const toggleBtn = document.getElementById('btn-toggle-item-redeem');
+        if (toggleBtn) {
+          toggleBtn.textContent = card.isRedeemed ? '🔄 重新標記為【未使用】' : '🔘 標記此商品為【已使用】';
+          toggleBtn.className = `btn-redeem-action ${card.isRedeemed ? 'btn-redeemed-undo' : 'btn-redeemed-do'}`;
+        }
+      }
+    } else {
+      if (balancePanel) balancePanel.style.display = 'block';
+      if (moneyDeductBox) moneyDeductBox.style.display = 'block';
+      if (itemActionPanel) itemActionPanel.style.display = 'none';
+
+      document.getElementById('modal-card-balance').textContent = card.balance;
+      document.getElementById('modal-card-facevalue').textContent = card.faceValue;
     }
 
     // 渲染出示面板 (純淨條碼 or 實體照片)
@@ -110,6 +141,31 @@ class BarcodePresenter {
 
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
+  }
+
+  // 彈出修改卡片/商品名稱對話框
+  promptRename() {
+    if (!this.currentCard) return;
+    const oldName = this.currentCard.name || '';
+    const newName = prompt('請輸入新的卡片/商品名稱 (例如：大杯熱拿鐵、100元禮券)：', oldName);
+    if (newName !== null && newName.trim() && newName.trim() !== oldName) {
+      window.cardStorage.renameCard(this.currentCard.id, newName.trim()).then(updated => {
+        this.currentCard = updated;
+        document.getElementById('modal-card-name').textContent = updated.name;
+        window.app?.refreshUI();
+        window.app?.showToast(`✏️ 名稱已更新為：「${updated.name}」`, 'success');
+      });
+    }
+  }
+
+  // 點擊切換商品兌換狀態
+  async toggleCurrentItemRedeem() {
+    if (!this.currentCard) return;
+    const updated = await window.cardStorage.toggleRedeem(this.currentCard.id);
+    this.currentCard = updated;
+    this.openModal(updated.id);
+    window.app?.refreshUI();
+    window.app?.showToast(updated.isRedeemed ? '✅ 已標記為【已使用】' : '↩️ 已恢復為【未使用】', 'info');
   }
 
   // 切換出示模式 (條碼 / 照片)

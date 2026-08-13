@@ -101,13 +101,19 @@ class AppController {
       });
     }
 
-    // 預設面額選擇
+    // 預設面額/類型選擇
     document.querySelectorAll('.preset-pill').forEach(pill => {
       pill.addEventListener('click', () => {
         document.querySelectorAll('.preset-pill').forEach(p => p.classList.remove('active'));
         pill.classList.add('active');
         const val = pill.dataset.value;
-        if (val === 'custom') {
+        if (val === 'item') {
+          const itemName = prompt('請輸入商品兌換項目名稱 (例如：大杯美式咖啡、肉包)：', '商品兌換券');
+          const finalName = (itemName && itemName.trim()) ? itemName.trim() : '商品兌換券';
+          window.cardScanner.setPresetItem(finalName);
+          pill.textContent = `🎁 ${finalName.slice(0, 4)}`;
+          this.showToast(`🎁 已切換為商品券模式：${finalName}`, 'info');
+        } else if (val === 'custom') {
           const customVal = prompt('請輸入自訂預設面額 (元)：', '100');
           if (customVal && !isNaN(customVal)) {
             window.cardScanner.setFaceValue(Number(customVal));
@@ -316,11 +322,13 @@ class AppController {
     const totalCountEl = document.getElementById('stat-total-count');
     const activeCountEl = document.getElementById('stat-active-count');
     const todaySpentEl = document.getElementById('stat-today-spent');
+    const itemPendingEl = document.getElementById('stat-item-pending');
 
     if (totalBalanceEl) totalBalanceEl.textContent = `$${stats.totalBalance.toLocaleString()}`;
     if (totalCountEl) totalCountEl.textContent = stats.totalCount;
     if (activeCountEl) activeCountEl.textContent = stats.activeCount;
     if (todaySpentEl) todaySpentEl.textContent = `$${stats.todaySpent}`;
+    if (itemPendingEl) itemPendingEl.textContent = `${stats.itemsPending} 件`;
   }
 
   renderCardList() {
@@ -329,10 +337,15 @@ class AppController {
 
     let cards = window.cardStorage.getCards();
 
+    // 篩選邏輯
     if (this.currentFilter === 'active') {
-      cards = cards.filter(c => c.balance > 0);
+      cards = cards.filter(c => c.status === 'active');
     } else if (this.currentFilter === 'depleted') {
-      cards = cards.filter(c => c.balance <= 0);
+      cards = cards.filter(c => c.status === 'depleted');
+    } else if (this.currentFilter === 'money') {
+      cards = cards.filter(c => c.cardType !== 'item');
+    } else if (this.currentFilter === 'item') {
+      cards = cards.filter(c => c.cardType === 'item');
     }
 
     if (this.searchQuery) {
@@ -341,6 +354,7 @@ class AppController {
         (c.code1 && c.code1.toLowerCase().includes(this.searchQuery)) ||
         (c.code2 && c.code2.toLowerCase().includes(this.searchQuery)) ||
         (c.name && c.name.toLowerCase().includes(this.searchQuery)) ||
+        (c.itemName && c.itemName.toLowerCase().includes(this.searchQuery)) ||
         (c.note && c.note.toLowerCase().includes(this.searchQuery))
       );
     }
@@ -357,16 +371,17 @@ class AppController {
       container.innerHTML = `
         <div class="empty-state">
           <div class="empty-icon">💳</div>
-          <div class="empty-title">目前沒有符合的商品卡</div>
-          <div class="empty-desc">${this.searchQuery ? '請嘗試更換搜尋關鍵字' : '點擊下方按鈕開始批次掃描或手動新增卡片！'}</div>
-          <button class="btn-primary" onclick="window.app.openScannerModal()">⚡ 立即掃描卡片</button>
+          <div class="empty-title">目前沒有符合的卡片或商品券</div>
+          <div class="empty-desc">${this.searchQuery ? '請嘗試更換搜尋關鍵字' : '點擊下方按鈕開始批次掃描或手動新增！'}</div>
+          <button class="btn-primary" onclick="window.app.openScannerModal()">⚡ 立即掃描</button>
         </div>
       `;
       return;
     }
 
     container.innerHTML = cards.map(card => {
-      const isDepleted = card.balance <= 0;
+      const isItem = card.cardType === 'item';
+      const isDepleted = card.status === 'depleted';
       const primaryCode = card.code1 || card.code;
       const formattedCode = window.barcodePresenter.formatCardCode(primaryCode);
       const percent = card.faceValue > 0 ? Math.min(100, Math.round((card.balance / card.faceValue) * 100)) : 0;
@@ -378,13 +393,13 @@ class AppController {
           
           <div class="card-header-row">
             <div class="card-title-group">
-              <span class="card-brand-badge">7-11</span>
+              <span class="card-brand-badge">${isItem ? '🎁 兌換' : '7-11'}</span>
               <span class="card-name-text">${this.escapeHTML(card.name)}</span>
-              ${isDual ? '<span class="badge-dual-tag">雙段條碼</span>' : ''}
-              ${card.photoUrl ? '<span class="badge-dual-tag" style="background: rgba(0,129,72,0.2); color: #00FF88; border-color: rgba(0,255,136,0.3);">📷 有照片</span>' : ''}
+              ${isDual ? '<span class="badge-dual-tag">雙段</span>' : ''}
+              ${card.photoUrl ? '<span class="badge-dual-tag" style="background: rgba(0,129,72,0.2); color: #00FF88; border-color: rgba(0,255,136,0.3);">📷 照片</span>' : ''}
             </div>
             <span class="card-status-pill ${isDepleted ? 'status-depleted' : 'status-active'}">
-              ${isDepleted ? '已用完' : '使用中'}
+              ${isItem ? (card.isRedeemed ? '已使用' : '未兌換') : (isDepleted ? '已用完' : '使用中')}
             </span>
           </div>
 
@@ -397,22 +412,36 @@ class AppController {
             <svg class="mini-barcode-svg" data-code="${primaryCode}" height="36"></svg>
           </div>
 
-          <div class="card-balance-row">
-            <div class="balance-info">
-              <span class="balance-label">剩餘餘額</span>
-              <span class="balance-value ${isDepleted ? 'text-depleted' : 'text-active'}">$${card.balance}</span>
-            </div>
-            <div class="facevalue-info">
-              <span class="facevalue-label">原面額 $${card.faceValue}</span>
-              <div class="balance-bar-container">
-                <div class="balance-bar-fill" style="width: ${percent}%;"></div>
+          ${isItem ? `
+            <div class="card-item-voucher-row">
+              <div class="voucher-info">
+                <span class="voucher-tag">🎁 商品兌換項目</span>
+                <div class="voucher-name">${this.escapeHTML(card.name)}</div>
+              </div>
+              <div class="voucher-status-box">
+                <span class="${card.isRedeemed ? 'text-depleted' : 'text-active'}" style="font-size:14px; font-weight:800;">
+                  ${card.isRedeemed ? '✔ 已兌換完畢' : '⏳ 待門市兌換'}
+                </span>
               </div>
             </div>
-          </div>
+          ` : `
+            <div class="card-balance-row">
+              <div class="balance-info">
+                <span class="balance-label">剩餘餘額</span>
+                <span class="balance-value ${isDepleted ? 'text-depleted' : 'text-active'}">$${card.balance}</span>
+              </div>
+              <div class="facevalue-info">
+                <span class="facevalue-label">原面額 $${card.faceValue}</span>
+                <div class="balance-bar-container">
+                  <div class="balance-bar-fill" style="width: ${percent}%;"></div>
+                </div>
+              </div>
+            </div>
+          `}
 
           <div class="card-action-bar">
             <button class="btn-card-action btn-show-barcode" onclick="event.stopPropagation(); window.barcodePresenter.openModal('${card.id}')">
-              📱 出示條碼 / 扣款
+              ${isItem ? '📱 出示條碼 / 標記已使用' : '📱 出示條碼 / 扣款'}
             </button>
           </div>
         </div>
@@ -556,18 +585,35 @@ class AppController {
       return;
     }
 
-    const faceVal = prompt('請輸入該卡片面額 (預設 100)：', '100');
-    const numFaceVal = Number(faceVal) || 100;
+    const modeChoice = prompt('請選擇卡片類型：\n1. 💰 金額商品卡 (預設)\n2. 🎁 商品兌換券 (如咖啡/麵包券)', '1');
+    const isItemType = modeChoice === '2';
+
+    let cardName = '';
+    let numFaceVal = 100;
+
+    if (isItemType) {
+      const itemPrompt = prompt('請輸入商品兌換項目名稱 (例如：大杯熱美式咖啡、肉包)：', '商品兌換券');
+      cardName = (itemPrompt && itemPrompt.trim()) ? itemPrompt.trim() : '商品兌換券';
+      numFaceVal = 0;
+    } else {
+      const faceVal = prompt('請輸入該卡片面額 (預設 100)：', '100');
+      numFaceVal = Number(faceVal) || 100;
+      const namePrompt = prompt('請輸入卡片名稱 (若留空則自動命名)：', `商品卡 $${numFaceVal}`);
+      cardName = (namePrompt && namePrompt.trim()) ? namePrompt.trim() : `商品卡 $${numFaceVal}`;
+    }
 
     window.cardStorage.addCard({
       code1: code1,
       code2: code2,
+      cardType: isItemType ? 'item' : 'money',
+      itemName: isItemType ? cardName : '',
+      name: cardName,
       faceValue: numFaceVal,
       balance: numFaceVal,
-      note: '手動輸入新增'
+      note: isItemType ? '手動新增商品兌換券' : '手動輸入新增'
     }).then(newCard => {
       this.refreshUI();
-      this.showToast(`✅ 已新增：${newCard.name} ($${newCard.faceValue})`, 'success');
+      this.showToast(`✅ 已新增：${newCard.name}`, 'success');
     }).catch(err => {
       this.showToast('❌ 新增失敗：' + err.message, 'error');
     });

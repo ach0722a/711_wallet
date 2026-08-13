@@ -19,7 +19,7 @@
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
   <!-- 應用樣式表 -->
-  <link rel="stylesheet" href="css/style.css?v=8.0">
+  <link rel="stylesheet" href="css/style.css?v=10.0">
 </head>
 <body>
 
@@ -62,6 +62,10 @@
           <div class="sub-stat-label">使用中</div>
         </div>
         <div class="sub-stat-item">
+          <div class="sub-stat-value" id="stat-item-pending">0 件</div>
+          <div class="sub-stat-label">待換商品</div>
+        </div>
+        <div class="sub-stat-item">
           <div class="sub-stat-value" id="stat-today-spent">$0</div>
           <div class="sub-stat-label">今日已扣款</div>
         </div>
@@ -73,7 +77,7 @@
       <div class="search-row">
         <div class="search-wrapper">
           <span class="search-icon">🔍</span>
-          <input type="text" class="search-input" id="search-input" placeholder="搜尋條碼末碼或卡片名稱..." autocomplete="off">
+          <input type="text" class="search-input" id="search-input" placeholder="搜尋條碼末碼或卡片/商品名稱..." autocomplete="off">
         </div>
         <select class="sort-select" id="sort-select">
           <option value="newest">最新更新</option>
@@ -85,6 +89,8 @@
 
       <div class="filter-tabs">
         <button class="filter-tab active" data-filter="all">全部</button>
+        <button class="filter-tab" data-filter="money">💰 金額卡</button>
+        <button class="filter-tab" data-filter="item">🎁 商品券</button>
         <button class="filter-tab" data-filter="active">使用中</button>
         <button class="filter-tab" data-filter="depleted">已用完</button>
       </div>
@@ -157,11 +163,11 @@
 
     <!-- 預設面額選擇列 (掃描當下自動套用) -->
     <div class="preset-selector-bar">
-      <span class="preset-title">預設面額:</span>
-      <button class="preset-pill" data-value="50">$50</button>
-      <button class="preset-pill active" data-value="100">$100</button>
-      <button class="preset-pill" data-value="200">$200</button>
-      <button class="preset-pill" data-value="500">$500</button>
+      <span class="preset-title">預設類型:</span>
+      <button class="preset-pill active" data-value="100">$100卡</button>
+      <button class="preset-pill" data-value="50">$50卡</button>
+      <button class="preset-pill" data-value="200">$200卡</button>
+      <button class="preset-pill" data-value="item">🎁 商品券</button>
       <button class="preset-pill" data-value="custom">自訂</button>
     </div>
 
@@ -193,7 +199,10 @@
     <div class="sheet-content">
       <div class="sheet-header">
         <div>
-          <h2 class="sheet-card-title" id="modal-card-name">7-11 商品卡</h2>
+          <div class="sheet-title-row">
+            <h2 class="sheet-card-title" id="modal-card-name">7-11 商品卡</h2>
+            <button class="btn-edit-title-pencil" id="btn-rename-card" onclick="window.barcodePresenter.promptRename()" title="修改名稱">✏️ 改名</button>
+          </div>
           <span class="status-badge" id="modal-card-status-badge">使用中</span>
         </div>
         <button class="btn-close-sheet" id="btn-close-detail">✕</button>
@@ -204,8 +213,8 @@
         <!-- 由 barcode-view.js 動態渲染雙段條碼或單段條碼 -->
       </div>
 
-      <!-- 餘額與手動修改面板 -->
-      <div class="balance-editor-panel">
+      <!-- 金額卡專用：餘額與手動修改面板 -->
+      <div class="balance-editor-panel" id="modal-balance-panel">
         <div class="editor-row">
           <div>
             <span class="editor-label">目前剩餘餘額 (面額 $<span id="modal-card-facevalue">100</span>)</span>
@@ -215,8 +224,15 @@
         </div>
       </div>
 
-      <!-- 快捷消費扣款計算機 -->
-      <div class="deduct-calculator-box">
+      <!-- 商品券專用：兌換標記操作面板 -->
+      <div class="item-redeem-panel" id="modal-item-action-panel" style="display: none;">
+        <button class="btn-redeem-action" id="btn-toggle-item-redeem" onclick="window.barcodePresenter.toggleCurrentItemRedeem()">
+          🔘 標記此商品為【已使用】
+        </button>
+      </div>
+
+      <!-- 金額卡專用：快捷消費扣款計算機 -->
+      <div class="deduct-calculator-box" id="modal-deduct-calculator">
         <div class="section-subtitle">🛒 快速結帳扣款 (消費自動扣減)</div>
         <div class="quick-spend-chips">
           <button class="btn-quick-spend" data-amount="10">-$10</button>
@@ -363,10 +379,10 @@
   </div>
 
   <!-- 應用程式邏輯腳本 (附帶版本號破除快取) -->
-  <script src="js/storage.js?v=9.0"></script>
-  <script src="js/scanner.js?v=9.0"></script>
-  <script src="js/barcode-view.js?v=9.0"></script>
-  <script src="js/repair-tool.js?v=9.0"></script>
-  <script src="js/app.js?v=9.0"></script>
+  <script src="js/storage.js?v=10.0"></script>
+  <script src="js/scanner.js?v=10.0"></script>
+  <script src="js/barcode-view.js?v=10.0"></script>
+  <script src="js/repair-tool.js?v=10.0"></script>
+  <script src="js/app.js?v=10.0"></script>
 </body>
 </html>

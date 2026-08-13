@@ -22,7 +22,9 @@ class CardScanner {
     this.recentScans = new Map();
     this.currentBatchCards = [];
     this.selectedFaceValue = 100;
-    this.audioCtx = null;
+    this.presetType = 'money'; // 'money' | 'item'
+    this.presetItemName = '商品兌換券';
+    this.scanMode = 'dual'; // 'dual' (雙段) | 'single' (單段)
     this.cameras = [];
     this.isTorchOn = false;
 
@@ -100,7 +102,14 @@ class CardScanner {
   }
 
   setFaceValue(value) {
+    this.presetType = 'money';
     this.selectedFaceValue = Number(value) || 100;
+  }
+
+  setPresetItem(itemName = '商品兌換券') {
+    this.presetType = 'item';
+    this.presetItemName = itemName;
+    this.selectedFaceValue = 0;
   }
 
   setScanMode(mode) {
@@ -375,15 +384,19 @@ class CardScanner {
     this.triggerVibrate('success');
 
     try {
+      const isItem = this.presetType === 'item';
       const newCard = await window.cardStorage.addCard({
         code: primaryCode,
         code1: code1 || primaryCode,
         code2: code2 || '',
         photoUrl: snapshotPhoto,
         preferredView: snapshotPhoto ? 'photo' : 'barcode',
-        faceValue: this.selectedFaceValue,
-        balance: this.selectedFaceValue,
-        note: code2 ? '一拍雙讀連掃自動附照片' : '單段連掃自動附照片'
+        cardType: this.presetType,
+        itemName: isItem ? (this.presetItemName || '商品兌換券') : '',
+        name: isItem ? (this.presetItemName || '商品兌換券') : undefined,
+        faceValue: isItem ? 0 : this.selectedFaceValue,
+        balance: isItem ? 0 : this.selectedFaceValue,
+        note: isItem ? '連掃商品兌換券自動附照片' : (code2 ? '一拍雙讀連掃自動附照片' : '單段連掃自動附照片')
       });
 
       this.currentBatchCards.push(newCard);
