@@ -522,16 +522,28 @@ class AppController {
   }
 
   openManualAddModal() {
-    const code1 = prompt('【第一段】請輸入 7-11 商品卡主卡號條碼：');
-    if (!code1 || !code1.trim()) return;
+    const rawCode1 = prompt('【第一段】請輸入 7-11 商品卡主卡號條碼 (純數字)：');
+    if (!rawCode1 || !rawCode1.trim()) return;
 
-    const code2 = prompt('【第二段】請輸入檢核碼條碼 (若無可留空)：', '');
+    const code1 = rawCode1.trim().replace(/\s+/g, '');
+    if (!/^\d{10,24}$/.test(code1)) {
+      this.showToast('❌ 第一段卡號必須是純數字 (10~24 碼)！', 'error');
+      return;
+    }
+
+    const rawCode2 = prompt('【第二段】請輸入 8 碼檢核碼條碼 (例如 B5SJBN13，無請留空)：', '');
+    let code2 = rawCode2 ? rawCode2.trim().replace(/\s+/g, '').toUpperCase() : '';
+    if (code2 && !/^[A-Z0-9]{8}$/.test(code2)) {
+      this.showToast('❌ 第二段檢核碼格式不正確，必須是嚴格 8 碼英數字 (如 B5SJBN13)！', 'error');
+      return;
+    }
+
     const faceVal = prompt('請輸入該卡片面額 (預設 100)：', '100');
     const numFaceVal = Number(faceVal) || 100;
 
     window.cardStorage.addCard({
-      code1: code1.trim(),
-      code2: code2 ? code2.trim() : '',
+      code1: code1,
+      code2: code2,
       faceValue: numFaceVal,
       balance: numFaceVal,
       note: '手動輸入新增'

@@ -19,7 +19,7 @@
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
   <!-- 應用樣式表 -->
-  <link rel="stylesheet" href="css/style.css?v=7.0">
+  <link rel="stylesheet" href="css/style.css?v=8.0">
 </head>
 <body>
 
@@ -137,18 +137,18 @@
     <div class="scanner-step-progress" id="scanner-step-progress">
       <div class="step-badge-pill step-active" id="step-pill-1">
         <span class="pill-dot">1</span>
-        <span>① 上方主卡號</span>
+        <span>① 純數字卡號</span>
       </div>
       <div class="step-arrow">➔</div>
       <div class="step-badge-pill" id="step-pill-2">
         <span class="pill-dot">2</span>
-        <span>② 下方檢核碼</span>
+        <span>② 8碼檢核碼 (如 B5SJBN13)</span>
       </div>
     </div>
 
     <!-- 雙段條碼動態提示文字與略過按鈕 -->
     <div class="scanner-step-banner">
-      <span class="step-hint-text" id="scanner-step-hint">🟢 請將紅線對準【上方：卡號條碼】</span>
+      <span class="step-hint-text" id="scanner-step-hint">⚡ 對準卡片背面 (自動同時辨識純數字卡號 + 8碼檢核碼)</span>
       <button class="btn-skip-step2" id="btn-skip-step2" style="display: none;">略過第二段 (直接存)</button>
     </div>
 
@@ -282,9 +282,9 @@
   </div>
 
   <!-- 應用程式邏輯腳本 (附帶版本號破除快取) -->
-  <script src="js/storage.js?v=7.0"></script>
-  <script src="js/scanner.js?v=7.0"></script>
-  <script src="js/barcode-view.js?v=7.0"></script>
-  <script src="js/app.js?v=7.0"></script>
+  <script src="js/storage.js?v=8.0"></script>
+  <script src="js/scanner.js?v=8.0"></script>
+  <script src="js/barcode-view.js?v=8.0"></script>
+  <script src="js/app.js?v=8.0"></script>
 </body>
 </html>

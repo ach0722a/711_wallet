@@ -121,9 +121,15 @@ class CardScanner {
   // 判斷是否符合 7-11 主卡號規則：【必須全部為數字，長度 10~24 碼】
   isMainCardNumber(code) {
     if (!code) return false;
-    const clean = String(code).trim();
-    // 嚴格純數字校驗且長度 >= 10 (7-11 商品卡主卡號通常為 16 碼純數字)
+    const clean = String(code).trim().replace(/\s+/g, '');
     return /^\d{10,24}$/.test(clean);
+  }
+
+  // 判斷是否符合 7-11 第二段檢核碼規則：【嚴格英數字 8 碼，無空格符號，如 B5SJBN13】
+  isVerificationCode(code) {
+    if (!code) return false;
+    const clean = String(code).trim().replace(/\s+/g, '');
+    return /^[A-Za-z0-9]{8}$/.test(clean);
   }
 
   // 啟動相機掃描
@@ -222,11 +228,11 @@ class CardScanner {
             let candidateCode2 = null;
 
             for (const b of detectedBarcodes) {
-              const val = String(b.rawValue || '').trim();
+              const val = String(b.rawValue || '').trim().replace(/\s+/g, '');
               if (this.isMainCardNumber(val)) {
                 candidateCode1 = val;
-              } else if (val) {
-                candidateCode2 = val;
+              } else if (this.isVerificationCode(val)) {
+                candidateCode2 = val.toUpperCase();
               }
             }
 
@@ -250,7 +256,7 @@ class CardScanner {
   async handleIncomingBarcode(rawCode, decodedResult, onScanSuccess) {
     if (this.isCardProcessing) return;
 
-    const code = String(rawCode).trim();
+    const code = String(rawCode).trim().replace(/\s+/g, '');
     if (!code) return;
 
     // ==========================================
@@ -262,12 +268,13 @@ class CardScanner {
     }
 
     // ==========================================
-    // 雙段條碼智能收集模式
+    // 雙段條碼智能收集模式 (嚴格防呆規則)
     // ==========================================
-    const isNumeric = this.isMainCardNumber(code);
+    const isMainCard = this.isMainCardNumber(code);
+    const isVerifyCode = this.isVerificationCode(code);
 
-    if (isNumeric) {
-      // 這是主卡號 (純數字)
+    if (isMainCard) {
+      // 這是主卡號 (純數字 10~24 碼)
       if (this.collectedCode1 !== code) {
         this.collectedCode1 = code;
         this.playBeep('step1');
@@ -279,14 +286,15 @@ class CardScanner {
             code1: code,
             code2: this.collectedCode2,
             batchCount: this.currentBatchCards.length,
-            message: `📍 已識別卡號 [末碼 ...${code.slice(-6)}]，正在自動捕捉檢核碼...`
+            message: `📍 已識別卡號 [末碼 ...${code.slice(-6)}]，正在捕捉 8 碼檢核碼...`
           });
         }
       }
-    } else {
-      // 這是檢核碼 (含有字母或短碼)
-      if (this.collectedCode2 !== code) {
-        this.collectedCode2 = code;
+    } else if (isVerifyCode) {
+      // 這是檢核碼 (嚴格英數字 8 碼，如 B5SJBN13)
+      const cleanVerify = code.toUpperCase();
+      if (this.collectedCode2 !== cleanVerify) {
+        this.collectedCode2 = cleanVerify;
         this.playBeep('step1');
         this.triggerVibrate('step1');
 
@@ -294,12 +302,15 @@ class CardScanner {
           onScanSuccess({
             status: 'step2_detected',
             code1: this.collectedCode1,
-            code2: code,
+            code2: cleanVerify,
             batchCount: this.currentBatchCards.length,
-            message: `📍 已識別檢核碼 [${code}]，正在捕捉純數字卡號...`
+            message: `📍 已識別檢核碼 [${cleanVerify}]，正在捕捉純數字卡號...`
           });
         }
       }
+    } else {
+      // 既不是純數字主卡號，也不是 8 碼檢核碼 ➔ 防呆直接過濾忽略
+      return;
     }
 
     // 若兩個條碼都已在緩衝窗中湊齊 ➔ 立即完成！
