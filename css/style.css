@@ -1493,56 +1493,174 @@ body {
   margin-bottom: 10px;
 }
 
-.repair-photo-box {
-  background: #0B1120;
-  border-radius: 8px;
-  overflow: hidden;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 120px;
-  max-height: 200px;
-}
-
-.repair-img {
-  max-width: 100%;
-  max-height: 200px;
-  object-fit: contain;
-}
-
-.repair-img-placeholder {
-  font-size: 12px;
-  color: var(--text-dim);
-  text-align: center;
-  padding: 20px;
-}
-
-.repair-input-row {
+.comparator-mode-bar {
   display: flex;
   gap: 8px;
   margin-bottom: 10px;
 }
 
-.repair-input {
+.btn-view-mode {
   flex: 1;
-  background: rgba(15, 23, 42, 0.8);
+  background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--border-light);
+  color: var(--text-muted);
+  padding: 8px;
   border-radius: var(--radius-sm);
-  padding: 8px 12px;
-  color: white;
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition-fast);
 }
 
-.candidates-title {
+.btn-view-mode.active {
+  background: rgba(0, 129, 72, 0.3);
+  border-color: var(--c-neon-green);
+  color: #FFFFFF;
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.2);
+}
+
+/* 核心比對工作台視窗 (重疊透光層) */
+.repair-comparator-container {
+  position: relative;
+  background: #0B1120;
+  border-radius: 12px;
+  overflow: hidden;
+  min-height: 140px;
+  max-height: 220px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: 1px solid var(--border-light);
+  margin-bottom: 10px;
+}
+
+.comparator-photo-layer {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.repair-img {
+  max-width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+}
+
+.comparator-overlay-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none;
+}
+
+.overlay-barcode-svg {
+  width: 85%;
+  max-width: 320px;
+  height: 60px;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 6px;
+  padding: 4px;
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.8);
+  transition: opacity 0.1s ease;
+}
+
+/* 並排對照視圖 */
+.mode-split .comparator-overlay-layer {
+  display: none;
+}
+
+.mode-split .repair-split-box {
+  display: block !important;
+  background: #FFFFFF;
+  border-radius: 8px;
+  padding: 8px;
+  margin-top: 10px;
+  text-align: center;
+}
+
+/* 滑桿控制列 */
+.comparator-controls-card {
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.slider-control-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.slider-label-row {
+  display: flex;
+  justify-content: space-between;
   font-size: 11px;
   color: var(--text-dim);
-  margin-bottom: 6px;
+  font-weight: 600;
 }
 
-.candidates-grid {
+.repair-slider {
+  width: 100%;
+  accent-color: var(--c-neon-green);
+  cursor: pointer;
+}
+
+/* 8 碼逐字推敲盤 */
+.bit-tuner-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.bit-slot-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  padding: 6px 2px;
+  text-align: center;
+}
+
+.bit-slot-idx {
+  font-size: 9px;
+  color: var(--text-dim);
+}
+
+.bit-slot-garbled {
+  font-size: 9px;
+  color: #F87171;
+  margin-bottom: 3px;
+}
+
+.bit-slot-input {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  color: var(--c-neon-green);
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 15px;
+  font-weight: 800;
+  text-align: center;
+  padding: 4px 0;
+  text-transform: uppercase;
+}
+
+.bit-slot-input:focus {
+  border-color: var(--c-neon-green);
+  outline: none;
+  box-shadow: 0 0 8px rgba(0, 255, 136, 0.4);
 }
 
 .candidate-card-pill {

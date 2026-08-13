@@ -19,7 +19,7 @@
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
   <!-- 應用樣式表 -->
-  <link rel="stylesheet" href="css/style.css?v=10.0">
+  <link rel="stylesheet" href="css/style.css?v=11.0">
 </head>
 <body>
 
@@ -266,41 +266,107 @@
   <!-- =======================================================================
        條碼修復與模糊照片增強工作室彈窗 (Repair Modal)
        ======================================================================= -->
+  <!-- =======================================================================
+       條碼修復與模糊照片增強工作室彈窗 (Repair Modal)
+       ======================================================================= -->
   <div class="modal-overlay" id="repair-modal">
     <div class="repair-modal-content">
       <div class="repair-header">
         <div>
-          <h2 class="repair-title">🛠️ 條碼修復與圖像還原工具</h2>
-          <p class="repair-subtitle">針對模糊反光照片或掃出亂碼 (如 NOR=F XP) 進行多重濾鏡還原與條紋比對</p>
+          <h2 class="repair-title">🛠️ 條碼修復與透光條紋比對工作台</h2>
+          <p class="repair-subtitle">將模糊照片與模擬條碼「透光重疊/並排對照」，肉眼 100% 精準抓出正確字元</p>
         </div>
         <button class="btn-close-sheet" onclick="window.barcodeRepairTool.closeModal()">✕</button>
       </div>
 
-      <!-- 區塊 1: 照片載入與多重增強濾鏡分析 -->
+      <!-- 區塊 1: 影像載入與 8 重增強濾鏡自動解碼 -->
       <div class="repair-section-card">
         <div class="repair-section-header">
-          <span>📷 實體卡片照片分析</span>
+          <span>📷 實體卡片照片 (模糊/反光)</span>
           <label class="btn-repair-upload">
-            📤 選擇/重拍照片
+            📤 上傳/重拍照片
             <input type="file" accept="image/*" style="display: none;" onchange="window.barcodeRepairTool.handleFileUpload(event)">
           </label>
         </div>
 
-        <div id="repair-status-text" class="repair-status-bar">請載入卡片照片或輸入下方亂碼以啟動推論分析</div>
+        <div id="repair-status-text" class="repair-status-bar">請載入卡片照片，系統將自動套用 8 道濾鏡重試解碼</div>
 
-        <div class="repair-photo-box" id="repair-photo-container">
-          <img id="repair-photo-preview" class="repair-img" style="display: none;" alt="卡片照片">
-          <div id="repair-photo-placeholder" class="repair-img-placeholder">
-            點擊上方「選擇/重拍照片」載入卡片，系統將自動套用 6 道濾鏡重試解碼
+        <!-- 模式切換鈕 (重疊透光 vs 並排對照) -->
+        <div class="comparator-mode-bar">
+          <button class="btn-view-mode active" data-mode="overlay" onclick="window.barcodeRepairTool.setViewMode('overlay')">
+            🔲 重疊透光比對 (推薦)
+          </button>
+          <button class="btn-view-mode" data-mode="split" onclick="window.barcodeRepairTool.setViewMode('split')">
+            ◫ 並排逐條對照
+          </button>
+        </div>
+
+        <!-- 核心比對視窗 (支援透光重疊) -->
+        <div class="repair-comparator-container mode-overlay" id="repair-comparator-box">
+          <!-- 底層：實體照片 -->
+          <div class="comparator-photo-layer">
+            <img id="repair-photo-preview" class="repair-img" style="display: none;" alt="卡片照片">
+            <div id="repair-photo-placeholder" class="repair-img-placeholder">
+              點擊右上「上傳/重拍照片」載入卡片照片以啟動條紋對比
+            </div>
           </div>
-          <canvas id="repair-canvas" style="display: none;"></canvas>
+
+          <!-- 頂層：浮動透明向量條碼 (可透過滑桿縮放/微調) -->
+          <div class="comparator-overlay-layer">
+            <svg id="repair-overlay-svg" class="overlay-barcode-svg"></svg>
+          </div>
+        </div>
+
+        <!-- 條紋比對微調滑桿控制列 -->
+        <div class="comparator-controls-card">
+          <div class="slider-control-item">
+            <div class="slider-label-row">
+              <span>透光度 (條碼透明度)</span>
+              <span id="val-opacity">55%</span>
+            </div>
+            <input type="range" min="10" max="100" value="55" class="repair-slider" oninput="window.barcodeRepairTool.setOpacity(this.value)">
+          </div>
+
+          <div class="slider-control-item">
+            <div class="slider-label-row">
+              <span>條碼寬度縮放 (拉齊照片)</span>
+              <span id="val-scale">100%</span>
+            </div>
+            <input type="range" min="50" max="160" value="100" class="repair-slider" oninput="window.barcodeRepairTool.setScale(this.value)">
+          </div>
+
+          <div class="slider-control-item">
+            <div class="slider-label-row">
+              <span>水平左右微調</span>
+              <span id="val-offset">0px</span>
+            </div>
+            <input type="range" min="-80" max="80" value="0" class="repair-slider" oninput="window.barcodeRepairTool.setOffsetX(this.value)">
+          </div>
+        </div>
+
+        <!-- 並排模式專用下視圖 -->
+        <div class="repair-split-box" style="display: none;">
+          <svg id="repair-simulated-svg"></svg>
         </div>
       </div>
 
-      <!-- 區塊 2: 亂碼特徵推論與置換字典 -->
+      <!-- 區塊 2: 8 碼逐字即時推敲盤 (直接對著照片黑白條調整) -->
       <div class="repair-section-card">
         <div class="repair-section-header">
-          <span>🔍 亂碼推論 (自動計算最可能之 8 碼檢核碼)</span>
+          <span>🧠 8 碼逐字推敲盤 (點選修改，上方條紋即時變形)</span>
+        </div>
+        <p style="font-size: 11px; color: var(--text-dim); margin-bottom: 8px;">
+          請觀察上方照片的條紋哪裡多了一槓或少了一槓，直接微調對應字元：
+        </p>
+        <div class="bit-tuner-grid" id="repair-bit-tuner">
+          <!-- 動態渲染 8 個字元卡片 -->
+        </div>
+      </div>
+
+      <!-- 區塊 3: 亂碼推論候選字串快速選擇 -->
+      <div class="repair-section-card">
+        <div class="repair-section-header">
+          <span>🔍 亂碼推論候補組合 (點擊一鍵套用比對)</span>
         </div>
         <div class="repair-input-row">
           <input type="text" id="repair-garbled-input" class="repair-input" placeholder="貼上掃描到的亂碼 (如 NOR=F XP)...">
@@ -309,28 +375,16 @@
           </button>
         </div>
 
-        <div class="candidates-title">👉 智能推薦候補 8 碼 (點選即時比對條紋)：</div>
         <div class="candidates-grid" id="repair-candidates-grid">
           <!-- 動態插入 -->
         </div>
       </div>
 
-      <!-- 區塊 3: 視覺條紋比對檢視器 -->
-      <div class="repair-section-card">
-        <div class="repair-section-header">
-          <span>🎯 視覺條紋模擬比對器 (可手動微調)</span>
-        </div>
-        <p style="font-size: 11px; color: var(--text-dim); margin-bottom: 8px;">
-          請核對上方卡片照片中的黑白粗細條紋，是否與下方模擬生成的條碼一致：
-        </p>
-
-        <div class="repair-sim-box">
-          <svg id="repair-simulated-svg"></svg>
-        </div>
-
+      <!-- 區塊 4: 最終確認與儲存 -->
+      <div class="repair-section-card" style="margin-bottom: 0;">
         <div class="repair-final-row">
           <span style="font-size: 13px; font-weight: 700;">修復確認碼：</span>
-          <input type="text" id="repair-final-code" class="repair-input" style="font-weight: 800; letter-spacing: 2px; text-transform: uppercase;" maxlength="8" oninput="window.barcodeRepairTool.handleManualCodeChange(this.value)">
+          <input type="text" id="repair-final-code" class="repair-input" style="font-weight: 800; letter-spacing: 2px; text-transform: uppercase;" maxlength="8" oninput="window.barcodeRepairTool.selectCandidate(this.value)">
           <button class="btn-primary" style="background: var(--c-primary); white-space: nowrap;" onclick="window.barcodeRepairTool.applyRepairResult()">
             ✅ 確定套用修復
           </button>
@@ -379,10 +433,10 @@
   </div>
 
   <!-- 應用程式邏輯腳本 (附帶版本號破除快取) -->
-  <script src="js/storage.js?v=10.0"></script>
-  <script src="js/scanner.js?v=10.0"></script>
-  <script src="js/barcode-view.js?v=10.0"></script>
-  <script src="js/repair-tool.js?v=10.0"></script>
-  <script src="js/app.js?v=10.0"></script>
+  <script src="js/storage.js?v=11.0"></script>
+  <script src="js/scanner.js?v=11.0"></script>
+  <script src="js/barcode-view.js?v=11.0"></script>
+  <script src="js/repair-tool.js?v=11.0"></script>
+  <script src="js/app.js?v=11.0"></script>
 </body>
 </html>
