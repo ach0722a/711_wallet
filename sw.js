@@ -6,16 +6,16 @@
  * 只要有網路就能立即獲取最新程式碼，斷網時才使用本地快取。
  */
 
-const CACHE_NAME = '711-wallet-cache-v11';
+const CACHE_NAME = '711-wallet-cache-v12';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
-  './css/style.css?v=11.0',
-  './js/storage.js?v=11.0',
-  './js/scanner.js?v=11.0',
-  './js/barcode-view.js?v=11.0',
-  './js/repair-tool.js?v=11.0',
-  './js/app.js?v=11.0',
+  './css/style.css?v=12.0',
+  './js/storage.js?v=12.0',
+  './js/scanner.js?v=12.0',
+  './js/barcode-view.js?v=12.0',
+  './js/repair-tool.js?v=12.0',
+  './js/app.js?v=12.0',
   './manifest.json',
   './icons/icon-192.svg',
   './icons/icon-512.svg',

@@ -15,9 +15,10 @@ class BarcodeRepairTool {
     this.isProcessing = false;
 
     // 比對器控制參數
-    this.overlayOpacity = 0.55;
+    this.overlayOpacity = 0.65;
     this.overlayScale = 1.0;
     this.overlayOffsetX = 0;
+    this.overlayOffsetY = 0;
     this.viewMode = 'overlay'; // 'overlay' | 'split'
     this.currentCandidateCode = 'B5SJBN13';
     this.originalGarbled = 'NOR=F XP';
@@ -319,9 +320,9 @@ class BarcodeRepairTool {
 
     // 繪製向量條碼
     if (svgOverlay) {
-      window.barcodePresenter.renderBarcode(svgOverlay, codeToRender, 'CODE128', 60);
+      window.barcodePresenter.renderBarcode(svgOverlay, codeToRender, 'CODE128', 65);
       svgOverlay.style.opacity = this.overlayOpacity;
-      svgOverlay.style.transform = `translateX(${this.overlayOffsetX}px) scaleX(${this.overlayScale})`;
+      svgOverlay.style.transform = `translate(${this.overlayOffsetX}px, ${this.overlayOffsetY}px) scale(${this.overlayScale})`;
     }
 
     if (svgSide) {
@@ -350,8 +351,59 @@ class BarcodeRepairTool {
 
   setOffsetX(val) {
     this.overlayOffsetX = Number(val);
-    const label = document.getElementById('val-offset');
+    const label = document.getElementById('val-offset-x');
     if (label) label.textContent = `${val}px`;
+    this.updateComparatorView();
+  }
+
+  setOffsetY(val) {
+    this.overlayOffsetY = Number(val);
+    const label = document.getElementById('val-offset-y');
+    if (label) label.textContent = `${val}px`;
+    this.updateComparatorView();
+  }
+
+  // 一鍵拉滿寬度 (填滿畫面)
+  fitFullWidth() {
+    this.overlayScale = 2.0;
+    this.overlayOffsetX = 0;
+    this.overlayOffsetY = 0;
+
+    const scaleSlider = document.getElementById('slider-scale');
+    if (scaleSlider) scaleSlider.value = 200;
+    const scaleLabel = document.getElementById('val-scale');
+    if (scaleLabel) scaleLabel.textContent = '200%';
+
+    const offsetXSlider = document.getElementById('slider-offset-x');
+    if (offsetXSlider) offsetXSlider.value = 0;
+    const offsetLabel = document.getElementById('val-offset-x');
+    if (offsetLabel) offsetLabel.textContent = '0px';
+
+    this.updateComparatorView();
+    window.app?.showToast('↔ 已一鍵拉滿條碼寬度！', 'info');
+  }
+
+  // 重置縮放與位置
+  resetTransform() {
+    this.overlayScale = 1.0;
+    this.overlayOffsetX = 0;
+    this.overlayOffsetY = 0;
+
+    const scaleSlider = document.getElementById('slider-scale');
+    if (scaleSlider) scaleSlider.value = 100;
+    const scaleLabel = document.getElementById('val-scale');
+    if (scaleLabel) scaleLabel.textContent = '100%';
+
+    const offsetXSlider = document.getElementById('slider-offset-x');
+    if (offsetXSlider) offsetXSlider.value = 0;
+    const offsetLabel = document.getElementById('val-offset-x');
+    if (offsetLabel) offsetLabel.textContent = '0px';
+
+    const offsetYSlider = document.getElementById('slider-offset-y');
+    if (offsetYSlider) offsetYSlider.value = 0;
+    const offsetYLabel = document.getElementById('val-offset-y');
+    if (offsetYLabel) offsetYLabel.textContent = '0px';
+
     this.updateComparatorView();
   }
 

@@ -1561,14 +1561,39 @@ body {
 }
 
 .overlay-barcode-svg {
-  width: 85%;
-  max-width: 320px;
-  height: 60px;
-  background: rgba(255, 255, 255, 0.85);
+  width: 96%;
+  max-width: none; /* 解除 320px 上限，允許隨意縮放拉滿 */
+  height: 65px;
+  background: rgba(255, 255, 255, 0.88);
   border-radius: 6px;
   padding: 4px;
   box-shadow: 0 0 15px rgba(0, 0, 0, 0.8);
   transition: opacity 0.1s ease;
+  transform-origin: center center;
+}
+
+.fit-btn-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.btn-fit-action {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-light);
+  color: var(--text-main);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.btn-fit-action:hover {
+  background: rgba(0, 129, 72, 0.25);
+  border-color: var(--c-neon-green);
 }
 
 /* 並排對照視圖 */

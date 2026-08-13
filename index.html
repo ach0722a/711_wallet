@@ -19,7 +19,7 @@
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
   <!-- 應用樣式表 -->
-  <link rel="stylesheet" href="css/style.css?v=11.0">
+  <link rel="stylesheet" href="css/style.css?v=12.0">
 </head>
 <body>
 
@@ -322,25 +322,38 @@
           <div class="slider-control-item">
             <div class="slider-label-row">
               <span>透光度 (條碼透明度)</span>
-              <span id="val-opacity">55%</span>
+              <span id="val-opacity">65%</span>
             </div>
-            <input type="range" min="10" max="100" value="55" class="repair-slider" oninput="window.barcodeRepairTool.setOpacity(this.value)">
+            <input type="range" min="10" max="100" value="65" class="repair-slider" oninput="window.barcodeRepairTool.setOpacity(this.value)">
           </div>
 
           <div class="slider-control-item">
             <div class="slider-label-row">
-              <span>條碼寬度縮放 (拉齊照片)</span>
+              <span>條碼寬度縮放 (支援 30% ~ 300% 拉滿)</span>
               <span id="val-scale">100%</span>
             </div>
-            <input type="range" min="50" max="160" value="100" class="repair-slider" oninput="window.barcodeRepairTool.setScale(this.value)">
+            <input type="range" id="slider-scale" min="30" max="300" value="100" class="repair-slider" oninput="window.barcodeRepairTool.setScale(this.value)">
+          </div>
+
+          <div class="fit-btn-row">
+            <button class="btn-fit-action" onclick="window.barcodeRepairTool.fitFullWidth()">↔ 一鍵拉滿 (200% 滿版)</button>
+            <button class="btn-fit-action" onclick="window.barcodeRepairTool.resetTransform()">📐 重置位置/大小 (100%)</button>
+          </div>
+
+          <div class="slider-control-item" style="margin-top: 4px;">
+            <div class="slider-label-row">
+              <span>水平左右微調 (X 軸)</span>
+              <span id="val-offset-x">0px</span>
+            </div>
+            <input type="range" id="slider-offset-x" min="-160" max="160" value="0" class="repair-slider" oninput="window.barcodeRepairTool.setOffsetX(this.value)">
           </div>
 
           <div class="slider-control-item">
             <div class="slider-label-row">
-              <span>水平左右微調</span>
-              <span id="val-offset">0px</span>
+              <span>垂直上下微調 (Y 軸)</span>
+              <span id="val-offset-y">0px</span>
             </div>
-            <input type="range" min="-80" max="80" value="0" class="repair-slider" oninput="window.barcodeRepairTool.setOffsetX(this.value)">
+            <input type="range" id="slider-offset-y" min="-120" max="120" value="0" class="repair-slider" oninput="window.barcodeRepairTool.setOffsetY(this.value)">
           </div>
         </div>
 
@@ -433,10 +446,10 @@
   </div>
 
   <!-- 應用程式邏輯腳本 (附帶版本號破除快取) -->
-  <script src="js/storage.js?v=11.0"></script>
-  <script src="js/scanner.js?v=11.0"></script>
-  <script src="js/barcode-view.js?v=11.0"></script>
-  <script src="js/repair-tool.js?v=11.0"></script>
-  <script src="js/app.js?v=11.0"></script>
+  <script src="js/storage.js?v=12.0"></script>
+  <script src="js/scanner.js?v=12.0"></script>
+  <script src="js/barcode-view.js?v=12.0"></script>
+  <script src="js/repair-tool.js?v=12.0"></script>
+  <script src="js/app.js?v=12.0"></script>
 </body>
 </html>
