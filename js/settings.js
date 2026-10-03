@@ -140,7 +140,15 @@ class SettingsPanel {
       }
     });
     on('btn-cloud-logout', 'click', () => window.cloudSync.signOut());
-    on('btn-cloud-sync', 'click', () => window.cloudSync.syncNow());
+    on('btn-cloud-sync', 'click', async () => {
+      if (window.cloudSync.syncing) {
+        window.app.showToast('🔄 正在同步，請稍候...', 'info');
+        return;
+      }
+      await window.cloudSync.syncNow();
+      const err = window.cloudSync.lastError;
+      window.app.showToast(err ? '❌ 同步失敗：' + err : '✅ 同步完成', err ? 'error' : 'success');
+    });
 
     window.cloudSync.onStatusChange = () => this.renderCloudStatus();
   }
