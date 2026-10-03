@@ -1,5 +1,5 @@
 /**
- * 條碼 Wallet - 資料持久化與雙重儲存管理模組 (storage.js)
+ * 7-11 商品卡皮夾 - 資料持久化與雙重儲存管理模組 (storage.js)
  * 
  * 設計思路與技術亮點：
  * 1. 雙重保險機制 (LocalStorage + IndexedDB 同步)：雙向防呆，一方遺失另一方自動還原。
@@ -15,18 +15,35 @@ const DB_NAME = '711CardWalletDB';
 const DB_VERSION = 1;
 const STORE_NAME = 'cards';
 
-// 條碼分流：各通路品牌定義 (舊資料沒有 brand 欄位一律視為 7-11)
-const BRANDS = {
-  '711':    { label: '7-11',  color: '#008148' },
-  'family': { label: '全家',   color: '#0091D5' },
-  'hilife': { label: '萊爾富', color: '#E60012' },
-  'okmart': { label: 'OK',    color: '#F39800' },
-  'other':  { label: '其他',   color: '#64748B' }
-};
-const DEFAULT_BRAND = '711';
+const DELETED_KEY = '711_deleted_ids_v1';
 
-function getCardBrand(card) {
-  return (card && BRANDS[card.brand]) ? card.brand : DEFAULT_BRAND;
+// 條碼分流：通路品牌由使用者在「設定」自行新增，預設只有 7-11 (舊資料沒有 brand 欄位一律視為 7-11)
+// 檢查規則皆為正規表示式字串，留空代表不檢查
+//   mode:         'dual' 雙段 (卡號 + 檢核碼) | 'single' 單段
+//   code1Pattern: 第一段 (主條碼) 必須符合的格式
+//   code2Pattern: 第二段 (檢核碼) 必須符合的格式，僅雙段模式使用
+//   uppercase:    存檔前是否把英文字母轉大寫
+const DEFAULT_BRAND = '711';
+const DEFAULT_BRANDS = [
+  {
+    id: DEFAULT_BRAND,
+    label: '7-11',
+    color: '#008148',
+    mode: 'dual',
+    code1Pattern: '^\\d{10,24}$',
+    code2Pattern: '^[A-Za-z0-9]{8}$',
+    uppercase: true
+  }
+];
+
+// 把使用者輸入的規則字串轉成 RegExp，格式錯誤時回傳 null 代表不檢查
+function compilePattern(pattern) {
+  if (!pattern) return null;
+  try {
+    return new RegExp(pattern);
+  } catch (e) {
+    return null;
+  }
 }
 
 class CardStorage {
@@ -38,8 +55,16 @@ class CardStorage {
       soundEnabled: true,
       highBrightnessReminder: true,
       duplicateCooldownSeconds: 2,
-      theme: 'dark'
+      theme: 'dark',
+      brands: DEFAULT_BRANDS.map(b => ({ ...b })),
+      brandsUpdatedAt: '',
+      firebaseConfig: null
     };
+    // 雲端同步用：刪除墓碑 { id: 刪除時間 }，讓其他裝置也知道要刪
+    this.deletedIds = {};
+    // 每次資料變動後呼叫 (雲端同步模組會掛在這裡)
+    this.onChange = null;
+    this.onSettingsChange = null;
     this.db = null;
     this.initialized = false;
   }
@@ -66,6 +91,16 @@ class CardStorage {
       }
     } catch (e) {
       console.warn('[Storage] 讀取設定失敗:', e);
+    }
+
+    if (!Array.isArray(this.settings.brands) || !this.settings.brands.some(b => b.id === DEFAULT_BRAND)) {
+      this.settings.brands = [...DEFAULT_BRANDS.map(b => ({ ...b })), ...(this.settings.brands || [])];
+    }
+
+    try {
+      this.deletedIds = JSON.parse(localStorage.getItem(DELETED_KEY) || '{}') || {};
+    } catch (e) {
+      this.deletedIds = {};
     }
 
     // 3. 連線 IndexedDB
@@ -164,6 +199,8 @@ class CardStorage {
 
   // 統一儲存 (同時寫入 LocalStorage 與 IndexedDB)
   async persist() {
+    this.saveDeletedIds();
+
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.cards));
     } catch (e) {
@@ -177,6 +214,102 @@ class CardStorage {
         console.error('[Storage] IndexedDB 寫入失敗:', e);
       }
     }
+
+    if (this.onChange) this.onChange();
+  }
+
+  saveDeletedIds() {
+    try {
+      localStorage.setItem(DELETED_KEY, JSON.stringify(this.deletedIds));
+    } catch (e) {
+      console.error('[Storage] 刪除紀錄寫入失敗:', e);
+    }
+  }
+
+  // 記錄刪除，供雲端同步把刪除也帶到其他裝置
+  markDeleted(ids) {
+    const now = new Date().toISOString();
+    ids.forEach(id => { this.deletedIds[id] = now; });
+  }
+
+  // ===== 通路品牌與檢查規則 =====
+
+  getBrands() {
+    return this.settings.brands;
+  }
+
+  // 取得品牌設定，找不到就回到預設 7-11
+  getBrand(id) {
+    const brands = this.settings.brands;
+    return brands.find(b => b.id === id) || brands.find(b => b.id === DEFAULT_BRAND) || DEFAULT_BRANDS[0];
+  }
+
+  getCardBrand(card) {
+    return this.getBrand(card && card.brand);
+  }
+
+  // 依品牌規則整理條碼 (去空白、轉大寫)
+  normalizeCode(brand, code) {
+    const clean = String(code || '').trim().replace(/\s+/g, '');
+    return brand.uppercase ? clean.toUpperCase() : clean;
+  }
+
+  // 檢查條碼是否符合該品牌第一段 / 第二段規則，規則留空一律通過
+  matchesCode1(brand, code) {
+    if (!code) return false;
+    const re = compilePattern(brand.code1Pattern);
+    return re ? re.test(code) : true;
+  }
+
+  matchesCode2(brand, code) {
+    if (!code) return false;
+    const re = compilePattern(brand.code2Pattern);
+    return re ? re.test(code) : true;
+  }
+
+  // 新增或修改品牌 (回傳錯誤訊息字串，成功回傳 null)
+  saveBrand(brand) {
+    const label = String(brand.label || '').trim();
+    if (!label) return '品牌名稱不能空白';
+    for (const key of ['code1Pattern', 'code2Pattern']) {
+      if (brand[key]) {
+        try {
+          new RegExp(brand[key]);
+        } catch (e) {
+          return `檢查規則格式錯誤：${brand[key]}`;
+        }
+      }
+    }
+
+    const clean = {
+      id: brand.id || 'brand_' + Date.now().toString(36),
+      label,
+      color: brand.color || '#64748B',
+      mode: brand.mode === 'single' ? 'single' : 'dual',
+      code1Pattern: String(brand.code1Pattern || ''),
+      code2Pattern: String(brand.code2Pattern || ''),
+      uppercase: Boolean(brand.uppercase)
+    };
+
+    const brands = [...this.settings.brands];
+    const index = brands.findIndex(b => b.id === clean.id);
+    if (index === -1) brands.push(clean);
+    else brands[index] = clean;
+
+    this.saveSettings({ brands, brandsUpdatedAt: new Date().toISOString() });
+    return null;
+  }
+
+  // 刪除品牌 (預設 7-11 與仍有卡片使用的品牌不可刪)
+  deleteBrand(id) {
+    if (id === DEFAULT_BRAND) return '預設的 7-11 不能刪除';
+    const used = this.cards.filter(c => c.brand === id).length;
+    if (used > 0) return `還有 ${used} 張卡片屬於這個品牌，請先刪除或移走`;
+    this.saveSettings({
+      brands: this.settings.brands.filter(b => b.id !== id),
+      brandsUpdatedAt: new Date().toISOString()
+    });
+    return null;
   }
 
   // 儲存設定
@@ -187,6 +320,7 @@ class CardStorage {
     } catch (e) {
       console.error('[Storage] 儲存設定失敗:', e);
     }
+    if (this.onSettingsChange) this.onSettingsChange(newSettings);
   }
 
   // 取得全部卡片 (依最新更新時間排序)
@@ -220,7 +354,7 @@ class CardStorage {
       ? (data.itemName || `商品兌換券 #${this.cards.length + 1}`) 
       : `商品卡 #${this.cards.length + 1}`;
 
-    const brand = BRANDS[data.brand] ? data.brand : DEFAULT_BRAND;
+    const brand = this.getBrand(data.brand).id;
 
     const newCard = {
       id: 'card_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
@@ -392,6 +526,7 @@ class CardStorage {
     const index = this.cards.findIndex(c => c.id === id);
     if (index === -1) return false;
     this.cards.splice(index, 1);
+    this.markDeleted([id]);
     await this.persist();
     return true;
   }
@@ -399,6 +534,7 @@ class CardStorage {
   // 批次刪除已用完卡片
   async deleteDepletedCards() {
     const initialCount = this.cards.length;
+    this.markDeleted(this.cards.filter(c => !(c.balance > 0)).map(c => c.id));
     this.cards = this.cards.filter(c => c.balance > 0);
     const deletedCount = initialCount - this.cards.length;
     if (deletedCount > 0) {
@@ -409,6 +545,7 @@ class CardStorage {
 
   // 清空所有卡片
   async clearAll() {
+    this.markDeleted(this.cards.map(c => c.id));
     this.cards = [];
     await this.persist();
   }
@@ -456,7 +593,7 @@ class CardStorage {
   // 匯出為 JSON 備份檔
   exportJSON() {
     const backupData = {
-      app: 'Barcode-Wallet',
+      app: '711-Card-Wallet',
       version: '1.0',
       exportedAt: new Date().toISOString(),
       stats: this.getStats(),
@@ -480,7 +617,7 @@ class CardStorage {
       `"${(c.note || '').replace(/"/g, '""')}"`,
       `"${c.createdAt || ''}"`,
       `"${c.updatedAt || ''}"`,
-      `"${BRANDS[getCardBrand(c)].label}"`
+      `"${this.getCardBrand(c).label.replace(/"/g, '""')}"`
     ]);
 
     // 加入 UTF-8 BOM，防止 Excel 開啟亂碼
@@ -502,6 +639,8 @@ class CardStorage {
     }
 
     if (mode === 'overwrite') {
+      const keepIds = new Set(importedCards.map(c => c.id));
+      this.markDeleted(this.cards.filter(c => !keepIds.has(c.id)).map(c => c.id));
       this.cards = importedCards;
     } else {
       // 合併模式：條碼不重複才加入
@@ -543,5 +682,4 @@ class CardStorage {
 
 // 建立全域單例物件
 window.cardStorage = new CardStorage();
-window.BRANDS = BRANDS;
-window.getCardBrand = getCardBrand;
+window.DEFAULT_BRAND = DEFAULT_BRAND;

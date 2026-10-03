@@ -1,5 +1,5 @@
 /**
- * 條碼 Wallet - 條碼出示與實體照片管理模組 (barcode-view.js - v4 極簡純淨版)
+ * 7-11 商品卡皮夾 - 條碼出示與實體照片管理模組 (barcode-view.js - v4 極簡純淨版)
  * 
  * 修改思路與設計重點：
  * 1. 移除所有「給店員確認/請店員掃描」等突兀贅字，回歸超商官方卡片的極簡純淨版面。
@@ -91,7 +91,7 @@ class BarcodePresenter {
     const isItem = card.cardType === 'item';
 
     // 卡片名稱與編輯提示
-    document.getElementById('modal-card-name').textContent = card.name || (isItem ? '商品兌換券' : `${window.BRANDS[window.getCardBrand(card)].label} 商品卡`);
+    document.getElementById('modal-card-name').textContent = card.name || (isItem ? '商品兌換券' : `${window.cardStorage.getCardBrand(card).label} 商品卡`);
     
     // 狀態標籤
     const badgeEl = document.getElementById('modal-card-status-badge');

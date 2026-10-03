@@ -1,5 +1,5 @@
 /**
- * 條碼 Wallet - 離線 Service Worker 快取模組 (sw.js - v2)
+ * 7-11 商品卡皮夾 - 離線 Service Worker 快取模組 (sw.js - v2)
  * 
  * 升級思路：
  * 採用 Network-First (網路優先) 策略載入 HTML/JS/CSS，確保每次有新版本推送時
@@ -15,6 +15,8 @@ const ASSETS_TO_CACHE = [
   './js/scanner.js?v=13.0',
   './js/barcode-view.js?v=13.0',
   './js/repair-tool.js?v=13.0',
+  './js/cloud-sync.js?v=13.0',
+  './js/settings.js?v=13.0',
   './js/app.js?v=13.0',
   './manifest.json',
   './icons/icon-192.svg',
@@ -50,6 +52,11 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // 只快取 GET；Firebase 登入與資料庫連線直接走網路，不經過快取
+  if (event.request.method !== 'GET') return;
+  const url = new URL(event.request.url);
+  if (/googleapis\.com$|firebaseapp\.com$|firebaseio\.com$/.test(url.hostname) || url.pathname.startsWith('/__/auth')) return;
+
   // 網路優先策略 (Network First)：先嘗試向伺服器拿最新檔案，拿不到(離線)才讀快取
   event.respondWith(
     fetch(event.request)

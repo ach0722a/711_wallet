@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>條碼 Wallet - 多通路條碼收納與餘額管理</title>
+  <title>7-11 商品卡皮夾 - 極速批次掃描與餘額管理</title>
   
   <!-- PWA & Mobile Meta Tags -->
   <meta name="theme-color" content="#008148">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="條碼Wallet">
+  <meta name="apple-mobile-web-app-title" content="7-11卡夾">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/svg+xml" href="icons/icon-192.svg">
   <link rel="apple-touch-icon" href="icons/icon-192.svg">
@@ -27,8 +27,8 @@
   <header class="app-header">
     <div class="header-inner">
       <div class="brand-container">
-        <span class="brand-logo-badge">▌▍▌</span>
-        <h1 class="brand-title">條碼<span>Wallet</span></h1>
+        <span class="brand-logo-badge">7-11</span>
+        <h1 class="brand-title">商品卡<span>皮夾</span></h1>
       </div>
       <div class="header-actions">
         <button class="btn-icon-header" id="btn-open-repair" title="條碼修復與圖像還原工具">
@@ -36,6 +36,9 @@
         </button>
         <button class="btn-icon-header" id="btn-open-backup" title="資料備份與管理">
           💾
+        </button>
+        <button class="btn-icon-header" id="btn-open-settings" title="設定 (通路品牌 / 雲端同步)">
+          ⚙️
         </button>
       </div>
     </div>
@@ -87,14 +90,8 @@
         </select>
       </div>
 
-      <div class="brand-tabs" id="brand-tabs">
-        <button class="brand-tab active" data-brand="all">全部通路</button>
-        <button class="brand-tab" data-brand="711">7-11</button>
-        <button class="brand-tab" data-brand="family">全家</button>
-        <button class="brand-tab" data-brand="hilife">萊爾富</button>
-        <button class="brand-tab" data-brand="okmart">OK</button>
-        <button class="brand-tab" data-brand="other">其他</button>
-      </div>
+      <!-- 通路分流標籤 (依設定中的品牌動態渲染，只有一個品牌時自動隱藏) -->
+      <div class="brand-tabs" id="brand-tabs"></div>
 
       <div class="filter-tabs">
         <button class="filter-tab active" data-filter="all">全部</button>
@@ -168,6 +165,12 @@
     <div class="scanner-step-banner">
       <span class="step-hint-text" id="scanner-step-hint">⚡ 對準卡片背面 (自動同時辨識純數字卡號 + 8碼檢核碼)</span>
       <button class="btn-skip-step2" id="btn-skip-step2" style="display: none;">略過第二段 (直接存)</button>
+    </div>
+
+    <!-- 掃描通路選擇 (品牌與檢查規則請到 ⚙️ 設定調整) -->
+    <div class="preset-selector-bar">
+      <span class="preset-title">掃描通路:</span>
+      <select class="scanner-brand-select" id="scanner-brand-select"></select>
     </div>
 
     <!-- 預設面額選擇列 (掃描當下自動套用) -->
@@ -454,11 +457,108 @@
     </div>
   </div>
 
+  <!-- =======================================================================
+       設定彈窗 (Settings Modal)：通路品牌 / 檢查規則 / Firebase 雲端同步
+       ======================================================================= -->
+  <div class="modal-overlay" id="settings-modal">
+    <div class="backup-modal-content settings-modal-content">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h2 class="backup-title">⚙️ 設定</h2>
+        <button class="btn-close-sheet" id="btn-close-settings">✕</button>
+      </div>
+
+      <!-- 通路品牌清單 -->
+      <div class="settings-section">
+        <div class="settings-section-header">
+          <span>🏷️ 通路品牌與掃描規則</span>
+          <button class="btn-settings-small" id="btn-add-brand">➕ 新增品牌</button>
+        </div>
+        <p class="settings-hint">每個品牌可設定單段 / 雙段與條碼檢查規則。掃描時只會收下符合規則的條碼。</p>
+        <div id="settings-brand-list"></div>
+      </div>
+
+      <!-- 品牌編輯表單 (點清單的「編輯」或「新增品牌」才出現) -->
+      <form class="settings-section brand-editor" id="brand-editor" style="display: none;">
+        <div class="settings-section-header">
+          <span id="brand-editor-title">編輯品牌</span>
+        </div>
+        <input type="hidden" id="brand-field-id">
+        <label class="settings-field">
+          <span>品牌名稱</span>
+          <input type="text" id="brand-field-label" class="settings-input" placeholder="例如：全家" required>
+        </label>
+        <label class="settings-field">
+          <span>標籤顏色</span>
+          <input type="color" id="brand-field-color" class="settings-color" value="#64748B">
+        </label>
+        <label class="settings-field">
+          <span>條碼模式</span>
+          <select id="brand-field-mode" class="settings-input">
+            <option value="single">單段 (一個條碼)</option>
+            <option value="dual">雙段 (卡號 + 檢核碼)</option>
+          </select>
+        </label>
+        <label class="settings-field">
+          <span>第一段檢查規則 (留空 = 不檢查)</span>
+          <input type="text" id="brand-field-code1" class="settings-input settings-mono" placeholder="例如：^\d{16}$">
+        </label>
+        <label class="settings-field" id="brand-field-code2-row">
+          <span>第二段檢查規則 (雙段才用)</span>
+          <input type="text" id="brand-field-code2" class="settings-input settings-mono" placeholder="例如：^[A-Z0-9]{8}$">
+        </label>
+        <label class="settings-check">
+          <input type="checkbox" id="brand-field-uppercase">
+          <span>英文字母自動轉大寫</span>
+        </label>
+        <div class="settings-hint">
+          規則用「正規表示式」：<code>\d</code> 數字、<code>[A-Z0-9]</code> 英數字、<code>{8}</code> 剛好 8 碼、<code>{10,24}</code> 10~24 碼、<code>^</code> <code>$</code> 開頭結尾。
+          雙段模式下兩段規則要能互相區分，否則所有條碼都會被當成第一段。
+        </div>
+        <label class="settings-field">
+          <span>測試條碼</span>
+          <input type="text" id="brand-field-test" class="settings-input settings-mono" placeholder="貼上一個條碼看符不符合">
+        </label>
+        <div class="settings-hint" id="brand-test-result"></div>
+        <div class="settings-btn-row">
+          <button type="button" class="btn-settings-small" id="btn-cancel-brand">取消</button>
+          <button type="submit" class="btn-primary">💾 儲存品牌</button>
+        </div>
+      </form>
+
+      <!-- Firebase 雲端同步 -->
+      <div class="settings-section">
+        <div class="settings-section-header">
+          <span>☁️ 雲端同步 (Firebase)</span>
+        </div>
+        <p class="settings-hint" id="cloud-status-text">尚未設定。貼上 Firebase 專案設定後即可用 Google 帳號登入，跨裝置同步卡片。</p>
+
+        <div id="cloud-config-box">
+          <label class="settings-field">
+            <span>Firebase 設定 (firebaseConfig)</span>
+            <textarea id="cloud-config-input" class="settings-input settings-mono" rows="6" placeholder="從 Firebase 主控台 → 專案設定 → 你的應用程式 複製整段 firebaseConfig = { apiKey: ..., ... } 貼上"></textarea>
+          </label>
+          <div class="settings-btn-row">
+            <button type="button" class="btn-settings-small" id="btn-cloud-clear-config">清除設定</button>
+            <button type="button" class="btn-primary" id="btn-cloud-save-config">儲存設定</button>
+          </div>
+        </div>
+
+        <div class="settings-btn-row" id="cloud-auth-box" style="display: none;">
+          <button type="button" class="btn-primary" id="btn-cloud-login">🔑 用 Google 登入</button>
+          <button type="button" class="btn-settings-small" id="btn-cloud-sync" style="display: none;">🔄 立即同步</button>
+          <button type="button" class="btn-settings-small" id="btn-cloud-logout" style="display: none;">登出</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 應用程式邏輯腳本 (附帶版本號破除快取) -->
   <script src="js/storage.js?v=13.0"></script>
   <script src="js/scanner.js?v=13.0"></script>
   <script src="js/barcode-view.js?v=13.0"></script>
   <script src="js/repair-tool.js?v=13.0"></script>
+  <script src="js/cloud-sync.js?v=13.0"></script>
+  <script src="js/settings.js?v=13.0"></script>
   <script src="js/app.js?v=13.0"></script>
 </body>
 </html>
