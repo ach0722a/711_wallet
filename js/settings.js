@@ -375,7 +375,8 @@ class SettingsPanel {
       configInput.value = JSON.stringify(window.cardStorage.settings.firebaseConfig, null, 2);
     }
 
-    configBox.style.display = configured && cloud.user ? 'none' : '';
+    // 已內建專案設定，平常只需要登入按鈕；沒有設定時才顯示貼上欄位
+    configBox.style.display = configured ? 'none' : '';
     authBox.style.display = configured && cloud.ready ? '' : 'none';
     show('btn-cloud-login', !cloud.user);
     show('btn-cloud-sync', Boolean(cloud.user));

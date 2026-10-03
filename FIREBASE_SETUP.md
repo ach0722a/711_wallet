@@ -31,11 +31,14 @@ service cloud.firestore {
 }
 ```
 
-## 4. 在 App 裡設定
+## 4. 在 App 裡登入
+
+專案 `wallet-be3b4` 的設定已經內建在 `js/storage.js`（`DEFAULT_FIREBASE_CONFIG`），不用再貼。
 
 1. 開 App → 右上角 ⚙️ → 「雲端同步 (Firebase)」。
-2. 把第 1 步複製的 `firebaseConfig` 整段貼上 → 「儲存設定」。
-3. 按「🔑 用 Google 登入」。第一次登入會把手機上現有的卡片全部上傳。
+2. 按「🔑 用 Google 登入」。第一次登入會把手機上現有的卡片全部上傳。
+
+要換成別的 Firebase 專案，改 `DEFAULT_FIREBASE_CONFIG` 即可。
 
 ## 同步規則
 

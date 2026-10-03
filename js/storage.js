@@ -23,6 +23,16 @@ const DELETED_KEY = '711_deleted_ids_v1';
 //   code1Pattern: 第一段 (主條碼) 必須符合的格式
 //   code2Pattern: 第二段 (檢核碼) 必須符合的格式，僅雙段模式使用
 //   uppercase:    存檔前是否把英文字母轉大寫
+// 內建的 Firebase 專案設定 (這些值本來就會公開在網頁上，資料安全靠 Firestore 安全規則保護)
+const DEFAULT_FIREBASE_CONFIG = {
+  apiKey: 'AIzaSyDahlDr4Hv8LHCSwQBsWJZZsT52O1ZGS7k',
+  authDomain: 'wallet-be3b4.firebaseapp.com',
+  projectId: 'wallet-be3b4',
+  storageBucket: 'wallet-be3b4.firebasestorage.app',
+  messagingSenderId: '871997545197',
+  appId: '1:871997545197:web:bb422032ab362f63ae4ae4'
+};
+
 const DEFAULT_BRAND = '711';
 const DEFAULT_BRANDS = [
   {
@@ -58,7 +68,7 @@ class CardStorage {
       theme: 'dark',
       brands: DEFAULT_BRANDS.map(b => ({ ...b })),
       brandsUpdatedAt: '',
-      firebaseConfig: null
+      firebaseConfig: DEFAULT_FIREBASE_CONFIG
     };
     // 雲端同步用：刪除墓碑 { id: 刪除時間 }，讓其他裝置也知道要刪
     this.deletedIds = {};
