@@ -10,6 +10,8 @@
  *    - 啟動高效原生 BarcodeDetector 多條碼併發偵測 + 0.6 秒智慧收集緩衝：
  *      對準卡片 ➔ 同時或瞬間收集到 (純數字卡號 + 檢核碼) ➔ 1 秒直接完成一張卡片並自動拍照！
  * 3. 亦支援分步智能補齊：若鏡頭先看到其中一段，0.5 秒內看到另一段立即自動合併存入。
+ * 4. 通路分流：卡號 / 檢核碼的判斷規則來自所選品牌的設定 (storage.js 的 brands)，
+ *    掃描器本身不寫死任何格式。
  */
 
 class CardScanner {
@@ -25,6 +27,7 @@ class CardScanner {
     this.presetType = 'money'; // 'money' | 'item'
     this.presetItemName = '商品兌換券';
     this.scanMode = 'dual'; // 'dual' (雙段) | 'single' (單段)
+    this.brandId = '711'; // 目前掃描的通路品牌
     this.cameras = [];
     this.isTorchOn = false;
 
@@ -112,6 +115,18 @@ class CardScanner {
     this.selectedFaceValue = 0;
   }
 
+  // 切換掃描通路，並套用該品牌預設的單段 / 雙段模式
+  setBrand(brandId) {
+    const brand = window.cardStorage.getBrand(brandId);
+    this.brandId = brand.id;
+    this.setScanMode(brand.mode);
+    return brand;
+  }
+
+  getBrand() {
+    return window.cardStorage.getBrand(this.brandId);
+  }
+
   setScanMode(mode) {
     this.scanMode = mode;
     this.resetBuffer();
@@ -127,18 +142,16 @@ class CardScanner {
     }
   }
 
-  // 判斷是否符合 7-11 主卡號規則：【必須全部為數字，長度 10~24 碼】
+  // 依目前品牌規則判斷是否為第一段主卡號 (7-11 預設：10~24 碼純數字)
   isMainCardNumber(code) {
-    if (!code) return false;
-    const clean = String(code).trim().replace(/\s+/g, '');
-    return /^\d{10,24}$/.test(clean);
+    const brand = this.getBrand();
+    return window.cardStorage.matchesCode1(brand, window.cardStorage.normalizeCode(brand, code));
   }
 
-  // 判斷是否符合 7-11 第二段檢核碼規則：【嚴格英數字 8 碼，無空格符號，如 B5SJBN13】
+  // 依目前品牌規則判斷是否為第二段檢核碼 (7-11 預設：8 碼英數字，如 B5SJBN13)
   isVerificationCode(code) {
-    if (!code) return false;
-    const clean = String(code).trim().replace(/\s+/g, '');
-    return /^[A-Za-z0-9]{8}$/.test(clean);
+    const brand = this.getBrand();
+    return window.cardStorage.matchesCode2(brand, window.cardStorage.normalizeCode(brand, code));
   }
 
   // 啟動相機掃描
@@ -231,17 +244,18 @@ class CardScanner {
       if (video && video.readyState >= 2 && !this.isCardProcessing) {
         try {
           const detectedBarcodes = await this.nativeBarcodeDetector.detect(video);
-          if (detectedBarcodes && detectedBarcodes.length >= 2) {
+          if (this.scanMode === 'dual' && detectedBarcodes && detectedBarcodes.length >= 2) {
             // 在同一畫面中同時抓到多個條碼！
             let candidateCode1 = null;
             let candidateCode2 = null;
 
+            const brand = this.getBrand();
             for (const b of detectedBarcodes) {
-              const val = String(b.rawValue || '').trim().replace(/\s+/g, '');
+              const val = window.cardStorage.normalizeCode(brand, b.rawValue);
               if (this.isMainCardNumber(val)) {
                 candidateCode1 = val;
               } else if (this.isVerificationCode(val)) {
-                candidateCode2 = val.toUpperCase();
+                candidateCode2 = val;
               }
             }
 
@@ -265,13 +279,14 @@ class CardScanner {
   async handleIncomingBarcode(rawCode, decodedResult, onScanSuccess) {
     if (this.isCardProcessing) return;
 
-    const code = String(rawCode).trim().replace(/\s+/g, '');
+    const code = window.cardStorage.normalizeCode(this.getBrand(), rawCode);
     if (!code) return;
 
     // ==========================================
-    // 單段條碼模式
+    // 單段條碼模式 (仍依品牌第一段規則過濾)
     // ==========================================
     if (this.scanMode === 'single') {
+      if (!this.isMainCardNumber(code)) return;
       await this.finalizeCard(code, '', onScanSuccess);
       return;
     }
@@ -295,13 +310,13 @@ class CardScanner {
             code1: code,
             code2: this.collectedCode2,
             batchCount: this.currentBatchCards.length,
-            message: `📍 已識別卡號 [末碼 ...${code.slice(-6)}]，正在捕捉 8 碼檢核碼...`
+            message: `📍 已識別卡號 [末碼 ...${code.slice(-6)}]，正在捕捉檢核碼...`
           });
         }
       }
     } else if (isVerifyCode) {
-      // 這是檢核碼 (嚴格英數字 8 碼，如 B5SJBN13)
-      const cleanVerify = code.toUpperCase();
+      // 這是檢核碼 (依品牌第二段規則)
+      const cleanVerify = code;
       if (this.collectedCode2 !== cleanVerify) {
         this.collectedCode2 = cleanVerify;
         this.playBeep('step1');
@@ -313,12 +328,12 @@ class CardScanner {
             code1: this.collectedCode1,
             code2: cleanVerify,
             batchCount: this.currentBatchCards.length,
-            message: `📍 已識別檢核碼 [${cleanVerify}]，正在捕捉純數字卡號...`
+            message: `📍 已識別檢核碼 [${cleanVerify}]，正在捕捉卡號...`
           });
         }
       }
     } else {
-      // 既不是純數字主卡號，也不是 8 碼檢核碼 ➔ 防呆直接過濾忽略
+      // 不符合品牌任何一段規則 ➔ 防呆直接過濾忽略
       return;
     }
 
@@ -387,6 +402,7 @@ class CardScanner {
       const isItem = this.presetType === 'item';
       const newCard = await window.cardStorage.addCard({
         code: primaryCode,
+        brand: this.brandId,
         code1: code1 || primaryCode,
         code2: code2 || '',
         photoUrl: snapshotPhoto,

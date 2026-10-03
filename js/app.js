@@ -10,6 +10,7 @@
 class AppController {
   constructor() {
     this.currentFilter = 'all';
+    this.currentBrand = 'all';
     this.currentSort = 'newest';
     this.searchQuery = '';
     this.isAppReady = false;
@@ -18,8 +19,12 @@ class AppController {
   async init() {
     await window.cardStorage.init();
     this.bindEvents();
+    window.settingsPanel.bindEvents();
     this.refreshUI();
     this.isAppReady = true;
+
+    // 有設定 Firebase 才會連線，不擋住畫面
+    window.cloudSync.init();
 
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./sw.js')
@@ -51,6 +56,30 @@ class AppController {
         this.renderCardList();
       });
     });
+
+    // 通路分流 (標籤是動態渲染的，用事件委派)
+    const brandTabs = document.getElementById('brand-tabs');
+    if (brandTabs) {
+      brandTabs.addEventListener('click', (e) => {
+        const btn = e.target.closest('.brand-tab');
+        if (!btn) return;
+        this.currentBrand = btn.dataset.brand;
+        this.renderBrandTabs();
+        this.renderCardList();
+      });
+    }
+
+    // 掃描通路切換
+    const scannerBrandSelect = document.getElementById('scanner-brand-select');
+    if (scannerBrandSelect) {
+      scannerBrandSelect.addEventListener('change', (e) => this.applyScannerBrand(e.target.value));
+    }
+
+    // 設定彈窗
+    const settingsBtn = document.getElementById('btn-open-settings');
+    if (settingsBtn) {
+      settingsBtn.addEventListener('click', () => window.settingsPanel.open());
+    }
 
     // 排序
     const sortSelect = document.getElementById('sort-select');
@@ -89,6 +118,8 @@ class AppController {
         btn.classList.add('active');
         const mode = btn.dataset.mode;
         window.cardScanner.setScanMode(mode);
+        const progress = document.getElementById('scanner-step-progress');
+        if (progress) progress.style.display = mode === 'dual' ? '' : 'none';
         this.updateScannerStepHint(mode === 'dual' ? '請對準第 1 段「卡號條碼」' : '對準條碼即可自動存入');
       });
     });
@@ -312,7 +343,43 @@ class AppController {
 
   refreshUI() {
     this.renderStats();
+    this.renderBrandTabs();
     this.renderCardList();
+  }
+
+  // 首頁通路分流標籤 (只有一個品牌時隱藏)
+  renderBrandTabs() {
+    const container = document.getElementById('brand-tabs');
+    if (!container) return;
+    const brands = window.cardStorage.getBrands();
+    if (this.currentBrand !== 'all' && !brands.some(b => b.id === this.currentBrand)) {
+      this.currentBrand = 'all';
+    }
+    container.style.display = brands.length > 1 ? '' : 'none';
+    const tabs = [{ id: 'all', label: '全部通路' }, ...brands];
+    container.innerHTML = tabs.map(b => `
+      <button class="brand-tab ${this.currentBrand === b.id ? 'active' : ''}" data-brand="${this.escapeHTML(b.id)}">${this.escapeHTML(b.label)}</button>
+    `).join('');
+  }
+
+  // 掃描畫面的通路下拉選單
+  renderScannerBrandSelect() {
+    const select = document.getElementById('scanner-brand-select');
+    if (!select) return;
+    const brands = window.cardStorage.getBrands();
+    select.innerHTML = brands.map(b => `<option value="${this.escapeHTML(b.id)}">${this.escapeHTML(b.label)}</option>`).join('');
+    select.value = window.cardScanner.getBrand().id;
+  }
+
+  // 切換掃描通路：套用品牌的單段/雙段模式並同步切換按鈕
+  applyScannerBrand(brandId) {
+    const brand = window.cardScanner.setBrand(brandId);
+    document.querySelectorAll('.mode-toggle-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.mode === brand.mode);
+    });
+    const progress = document.getElementById('scanner-step-progress');
+    if (progress) progress.style.display = brand.mode === 'dual' ? '' : 'none';
+    this.updateScannerStepHint(brand.mode === 'dual' ? '請對準第 1 段「卡號條碼」' : `對準 ${brand.label} 條碼即可自動存入`);
   }
 
   renderStats() {
@@ -336,6 +403,11 @@ class AppController {
     if (!container) return;
 
     let cards = window.cardStorage.getCards();
+
+    // 通路分流
+    if (this.currentBrand !== 'all') {
+      cards = cards.filter(c => window.cardStorage.getCardBrand(c).id === this.currentBrand);
+    }
 
     // 篩選邏輯
     if (this.currentFilter === 'active') {
@@ -386,6 +458,7 @@ class AppController {
       const formattedCode = window.barcodePresenter.formatCardCode(primaryCode);
       const percent = card.faceValue > 0 ? Math.min(100, Math.round((card.balance / card.faceValue) * 100)) : 0;
       const isDual = Boolean(card.code2);
+      const brand = window.cardStorage.getCardBrand(card);
 
       return `
         <div class="card-item ${isDepleted ? 'card-depleted' : ''}" onclick="window.barcodePresenter.openModal('${card.id}')">
@@ -393,7 +466,8 @@ class AppController {
           
           <div class="card-header-row">
             <div class="card-title-group">
-              <span class="card-brand-badge">${isItem ? '🎁 兌換' : '7-11'}</span>
+              <span class="card-brand-badge" style="background: ${this.escapeHTML(brand.color)};">${this.escapeHTML(brand.label)}</span>
+              ${isItem ? '<span class="card-brand-badge">🎁 兌換</span>' : ''}
               <span class="card-name-text">${this.escapeHTML(card.name)}</span>
               ${isDual ? '<span class="badge-dual-tag">雙段</span>' : ''}
               ${card.photoUrl ? '<span class="badge-dual-tag" style="background: rgba(0,129,72,0.2); color: #00FF88; border-color: rgba(0,255,136,0.3);">📷 照片</span>' : ''}
@@ -466,7 +540,10 @@ class AppController {
     const liveCountEl = document.getElementById('scanner-live-count');
     if (liveCountEl) liveCountEl.textContent = '0';
 
-    this.updateScannerStepHint('請對準第 1 段「卡號條碼」');
+    this.renderScannerBrandSelect();
+    // 首頁正在看某個通路時，掃描就預設那個通路
+    this.applyScannerBrand(this.currentBrand !== 'all' ? this.currentBrand : window.cardScanner.getBrand().id);
+    this.renderScannerBrandSelect();
 
     const trayEl = document.getElementById('scanner-recent-tray');
     if (trayEl) trayEl.innerHTML = '<div class="tray-placeholder">對準條碼即可自動連續掃入...</div>';
@@ -569,20 +646,41 @@ class AppController {
   }
 
   openManualAddModal() {
-    const rawCode1 = prompt('【第一段】請輸入 7-11 商品卡主卡號條碼 (純數字)：');
+    const storage = window.cardStorage;
+    const brands = storage.getBrands();
+
+    let brand = brands[0];
+    if (brands.length > 1) {
+      const brandMenu = brands.map((b, i) => `${i + 1}. ${b.label}`).join('\n');
+      const brandChoice = prompt(`請選擇條碼通路：\n${brandMenu}`, '1');
+      if (brandChoice === null) return;
+      brand = brands[Number(brandChoice) - 1];
+      if (!brand) {
+        this.showToast('❌ 沒有這個通路選項', 'error');
+        return;
+      }
+    }
+    const isDual = brand.mode === 'dual';
+
+    const rawCode1 = prompt(isDual
+      ? `【第一段】請輸入 ${brand.label} 主卡號條碼：`
+      : `請輸入 ${brand.label} 條碼內容：`);
     if (!rawCode1 || !rawCode1.trim()) return;
 
-    const code1 = rawCode1.trim().replace(/\s+/g, '');
-    if (!/^\d{10,24}$/.test(code1)) {
-      this.showToast('❌ 第一段卡號必須是純數字 (10~24 碼)！', 'error');
+    const code1 = storage.normalizeCode(brand, rawCode1);
+    if (!storage.matchesCode1(brand, code1)) {
+      this.showToast(`❌ 條碼不符合 ${brand.label} 的第一段規則 (${brand.code1Pattern})，可到 ⚙️ 設定調整`, 'error');
       return;
     }
 
-    const rawCode2 = prompt('【第二段】請輸入 8 碼檢核碼條碼 (例如 B5SJBN13，無請留空)：', '');
-    let code2 = rawCode2 ? rawCode2.trim().replace(/\s+/g, '').toUpperCase() : '';
-    if (code2 && !/^[A-Z0-9]{8}$/.test(code2)) {
-      this.showToast('❌ 第二段檢核碼格式不正確，必須是嚴格 8 碼英數字 (如 B5SJBN13)！', 'error');
-      return;
+    let code2 = '';
+    if (isDual) {
+      const rawCode2 = prompt('【第二段】請輸入檢核碼條碼 (無請留空)：', '');
+      code2 = rawCode2 ? storage.normalizeCode(brand, rawCode2) : '';
+      if (code2 && !storage.matchesCode2(brand, code2)) {
+        this.showToast(`❌ 檢核碼不符合 ${brand.label} 的第二段規則 (${brand.code2Pattern})，可到 ⚙️ 設定調整`, 'error');
+        return;
+      }
     }
 
     const modeChoice = prompt('請選擇卡片類型：\n1. 💰 金額商品卡 (預設)\n2. 🎁 商品兌換券 (如咖啡/麵包券)', '1');
@@ -603,6 +701,7 @@ class AppController {
     }
 
     window.cardStorage.addCard({
+      brand: brand.id,
       code1: code1,
       code2: code2,
       cardType: isItemType ? 'item' : 'money',

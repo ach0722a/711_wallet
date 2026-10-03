@@ -91,7 +91,7 @@ class BarcodePresenter {
     const isItem = card.cardType === 'item';
 
     // 卡片名稱與編輯提示
-    document.getElementById('modal-card-name').textContent = card.name || (isItem ? '商品兌換券' : '7-ELEVEN 商品卡');
+    document.getElementById('modal-card-name').textContent = card.name || (isItem ? '商品兌換券' : `${window.cardStorage.getCardBrand(card).label} 商品卡`);
     
     // 狀態標籤
     const badgeEl = document.getElementById('modal-card-status-badge');
