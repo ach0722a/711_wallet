@@ -1,12 +1,58 @@
 /**
  * 7-11 商品卡皮夾 - 設定頁 (settings.js)
  *
- * 1. 通路品牌管理：新增 / 編輯 / 刪除品牌，設定單段或雙段、條碼檢查規則 (正規表示式)。
+ * 1. 通路品牌管理：新增 / 編輯 / 刪除品牌，設定單段或雙段、條碼檢查規則。
+ *    規則用按鈕選 (字元種類 + 長度)，存檔時轉成正規表示式字串，所以資料格式與掃描器不用改。
  *    掃描器與手動輸入都只讀這裡的設定，不再寫死 7-11 格式。
  * 2. Firebase 雲端同步：貼上專案設定、Google 登入 / 登出、立即同步。
  */
 
+// 字元種類 ➔ 正規表示式片段
+const RULE_CHARS = {
+  any:    { label: '不限',       re: '.' },
+  digits: { label: '純數字',     re: '\\d' },
+  alnum:  { label: '英文 + 數字', re: '[A-Za-z0-9]' }
+};
+const RULE_LENGTHS = { any: '不限', fixed: '固定', range: '範圍' };
+
+// 選項 ➔ 規則字串。字元與長度都不限時回傳空字串 (不檢查)
+function buildPattern(rule) {
+  if (rule.chars === 'any' && rule.len === 'any') return '';
+  const cls = RULE_CHARS[rule.chars].re;
+  let q = '+';
+  if (rule.len === 'fixed') q = `{${rule.fixed}}`;
+  if (rule.len === 'range') q = `{${Math.min(rule.min, rule.max)},${Math.max(rule.min, rule.max)}}`;
+  return `^${cls}${q}$`;
+}
+
+// 規則字串 ➔ 選項。認不出來的 (例如舊版手寫的) 回傳 null
+function parsePattern(pattern) {
+  const base = { chars: 'any', len: 'any', fixed: 8, min: 10, max: 24 };
+  if (!pattern) return base;
+  const m = /^\^(\\d|\[A-Za-z0-9\]|\.)(\+|\{(\d+)\}|\{(\d+),(\d+)\})\$$/.exec(pattern);
+  if (!m) return null;
+  const chars = Object.keys(RULE_CHARS).find(k => RULE_CHARS[k].re === m[1]);
+  if (m[3]) return { ...base, chars, len: 'fixed', fixed: Number(m[3]) };
+  if (m[4]) return { ...base, chars, len: 'range', min: Number(m[4]), max: Number(m[5]) };
+  return { ...base, chars };
+}
+
+// 規則字串 ➔ 給人看的說明，例如「純數字・10~24 碼」
+function describePattern(pattern) {
+  const rule = parsePattern(pattern);
+  if (!rule) return `自訂規則 ${pattern}`;
+  if (rule.chars === 'any' && rule.len === 'any') return '不檢查';
+  const len = rule.len === 'fixed' ? `${rule.fixed} 碼`
+    : rule.len === 'range' ? `${Math.min(rule.min, rule.max)}~${Math.max(rule.min, rule.max)} 碼` : '長度不限';
+  return `${rule.chars === 'any' ? '任何字元' : RULE_CHARS[rule.chars].label}・${len}`;
+}
+
 class SettingsPanel {
+  constructor() {
+    // 兩段規則各自的按鈕狀態；custom 不為 null 代表是認不出的舊規則，原樣保留
+    this.rules = { 1: null, 2: null };
+  }
+
   open() {
     const modal = document.getElementById('settings-modal');
     if (!modal) return;
@@ -37,9 +83,40 @@ class SettingsPanel {
       e.preventDefault();
       this.saveEditor();
     });
-    on('brand-field-mode', 'change', () => this.updateEditorVisibility());
-    ['brand-field-test', 'brand-field-code1', 'brand-field-code2', 'brand-field-mode', 'brand-field-uppercase'].forEach(id => {
+    ['brand-field-test', 'brand-field-uppercase'].forEach(id => {
       on(id, 'input', () => this.updateTestResult());
+    });
+
+    // 條碼段數按鈕
+    document.querySelectorAll('#brand-editor .chip-group[data-target]').forEach(group => {
+      group.addEventListener('click', (e) => {
+        const btn = e.target.closest('.chip-btn');
+        if (!btn) return;
+        document.getElementById(group.dataset.target).value = btn.dataset.value;
+        this.updateEditorVisibility();
+        this.updateTestResult();
+      });
+    });
+
+    // 規則按鈕 (事件委派，按鈕是動態畫的)
+    [1, 2].forEach(n => {
+      on(`rule-builder-${n}`, 'click', (e) => {
+        const btn = e.target.closest('button[data-rule]');
+        if (!btn) return;
+        const rule = this.rules[n];
+        if (btn.dataset.rule === 'reset') {
+          this.rules[n] = parsePattern('');
+        } else {
+          rule[btn.dataset.rule] = btn.dataset.value;
+        }
+        this.renderRuleBuilder(n);
+      });
+      on(`rule-builder-${n}`, 'input', (e) => {
+        const input = e.target.closest('input[data-rule]');
+        if (!input) return;
+        this.rules[n][input.dataset.rule] = Math.max(1, Math.min(99, Number(input.value) || 1));
+        this.syncRule(n);
+      });
     });
 
     const list = document.getElementById('settings-brand-list');
@@ -79,8 +156,8 @@ class SettingsPanel {
     list.innerHTML = window.cardStorage.getBrands().map(b => {
       const count = cards.filter(c => window.cardStorage.getCardBrand(c).id === b.id).length;
       const rules = b.mode === 'dual'
-        ? `雙段｜① ${esc(b.code1Pattern || '不檢查')}　② ${esc(b.code2Pattern || '不檢查')}`
-        : `單段｜${esc(b.code1Pattern || '不檢查')}`;
+        ? `兩段｜① ${esc(describePattern(b.code1Pattern))}　② ${esc(describePattern(b.code2Pattern))}`
+        : `一段｜${esc(describePattern(b.code1Pattern))}`;
       return `
         <div class="settings-brand-row">
           <span class="card-brand-badge" style="background: ${esc(b.color)};">${esc(b.label)}</span>
@@ -108,6 +185,11 @@ class SettingsPanel {
     set('brand-field-code2', brand.code2Pattern || '');
     set('brand-field-test', '');
     document.getElementById('brand-field-uppercase').checked = Boolean(brand.uppercase);
+    [1, 2].forEach(n => {
+      const pattern = brand[`code${n}Pattern`] || '';
+      this.rules[n] = parsePattern(pattern) || { ...parsePattern(''), custom: pattern };
+      this.renderRuleBuilder(n);
+    });
     document.getElementById('brand-editor-title').textContent = brandId ? `編輯「${brand.label}」` : '新增品牌';
 
     const editor = document.getElementById('brand-editor');
@@ -136,8 +218,51 @@ class SettingsPanel {
   }
 
   updateEditorVisibility() {
-    const isDual = document.getElementById('brand-field-mode').value === 'dual';
-    document.getElementById('brand-field-code2-row').style.display = isDual ? '' : 'none';
+    const mode = document.getElementById('brand-field-mode').value;
+    const isDual = mode === 'dual';
+    document.querySelectorAll('#brand-editor .chip-group[data-target="brand-field-mode"] .chip-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.value === mode);
+    });
+    document.getElementById('rule-builder-2').style.display = isDual ? '' : 'none';
+    document.getElementById('rule-builder-1-title').textContent = isDual ? '第一段 (卡號) 格式' : '條碼格式';
+  }
+
+  // 畫出某一段的規則按鈕
+  renderRuleBuilder(n) {
+    const box = document.getElementById(`rule-builder-${n}`);
+    const rule = this.rules[n];
+    const title = box.querySelector('.rule-builder-title').outerHTML;
+    const chip = (key, value, label) =>
+      `<button type="button" class="chip-btn ${rule[key] === value ? 'active' : ''}" data-rule="${key}" data-value="${value}">${label}</button>`;
+    const num = (key) => `<input type="number" class="settings-input rule-num" min="1" max="99" inputmode="numeric" data-rule="${key}" value="${rule[key]}">`;
+
+    if (rule.custom) {
+      box.innerHTML = `${title}
+        <div class="settings-hint">這是之前手動寫的進階規則：<code>${window.app.escapeHTML(rule.custom)}</code></div>
+        <button type="button" class="btn-settings-small" data-rule="reset">改用按鈕選擇</button>`;
+    } else {
+      box.innerHTML = `${title}
+        <div class="rule-row"><span class="rule-label">字元</span>
+          <div class="chip-group">${Object.keys(RULE_CHARS).map(k => chip('chars', k, RULE_CHARS[k].label)).join('')}</div>
+        </div>
+        <div class="rule-row"><span class="rule-label">長度</span>
+          <div class="chip-group">${Object.keys(RULE_LENGTHS).map(k => chip('len', k, RULE_LENGTHS[k])).join('')}</div>
+        </div>
+        ${rule.len === 'fixed' ? `<div class="rule-row"><span class="rule-label"></span>剛好 ${num('fixed')} 碼</div>` : ''}
+        ${rule.len === 'range' ? `<div class="rule-row"><span class="rule-label"></span>${num('min')} ~ ${num('max')} 碼</div>` : ''}
+        <div class="settings-hint rule-summary"></div>`;
+    }
+    this.syncRule(n);
+  }
+
+  // 按鈕狀態 ➔ 隱藏欄位的規則字串，並更新說明與測試結果
+  syncRule(n) {
+    const rule = this.rules[n];
+    const pattern = rule.custom || buildPattern(rule);
+    document.getElementById(`brand-field-code${n}`).value = pattern;
+    const summary = document.querySelector(`#rule-builder-${n} .rule-summary`);
+    if (summary) summary.textContent = pattern ? `→ ${describePattern(pattern)}` : '→ 不檢查，任何條碼都收';
+    this.updateTestResult();
   }
 
   // 即時測試：貼上一個條碼，顯示它會被當成第一段、第二段還是被忽略
@@ -145,13 +270,11 @@ class SettingsPanel {
     const out = document.getElementById('brand-test-result');
     const test = document.getElementById('brand-field-test').value;
     if (!out) return;
-    if (!test.trim()) {
-      out.textContent = '';
-      return;
-    }
+    out.textContent = this.dualRuleWarning();
 
     const brand = this.readEditor();
     const storage = window.cardStorage;
+    if (!test.trim()) return;
     for (const key of ['code1Pattern', 'code2Pattern']) {
       try {
         if (brand[key]) new RegExp(brand[key]);
@@ -162,13 +285,25 @@ class SettingsPanel {
     }
 
     const code = storage.normalizeCode(brand, test);
+    const isDual = brand.mode === 'dual';
+    let result;
     if (storage.matchesCode1(brand, code)) {
-      out.textContent = `✅ 「${code}」符合第一段規則`;
-    } else if (brand.mode === 'dual' && storage.matchesCode2(brand, code)) {
-      out.textContent = `✅ 「${code}」符合第二段 (檢核碼) 規則`;
+      result = `✅ 「${code}」符合${isDual ? '第一段 (卡號)' : ''}格式`;
+    } else if (isDual && storage.matchesCode2(brand, code)) {
+      result = `✅ 「${code}」符合第二段 (檢核碼) 格式`;
     } else {
-      out.textContent = `❌ 「${code}」不符合規則，掃描時會被忽略`;
+      result = `❌ 「${code}」不符合格式，掃描時會被忽略`;
     }
+    out.textContent = [result, out.textContent].filter(Boolean).join('\n');
+  }
+
+  // 兩段時，第一段規則若會吃下所有條碼，第二段永遠不會被認出來
+  dualRuleWarning() {
+    const brand = this.readEditor();
+    if (brand.mode !== 'dual') return '';
+    if (!brand.code1Pattern) return '⚠️ 兩段模式下，第一段要設格式，不然所有條碼都會被當成卡號';
+    if (brand.code1Pattern === brand.code2Pattern) return '⚠️ 兩段的格式一樣，系統會分不出哪個是卡號、哪個是檢核碼';
+    return '';
   }
 
   saveEditor() {

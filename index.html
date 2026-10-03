@@ -19,7 +19,7 @@
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
   <!-- 應用樣式表 -->
-  <link rel="stylesheet" href="css/style.css?v=13.0">
+  <link rel="stylesheet" href="css/style.css?v=14.0">
 </head>
 <body>
 
@@ -491,29 +491,31 @@
           <span>標籤顏色</span>
           <input type="color" id="brand-field-color" class="settings-color" value="#64748B">
         </label>
-        <label class="settings-field">
-          <span>條碼模式</span>
-          <select id="brand-field-mode" class="settings-input">
-            <option value="single">單段 (一個條碼)</option>
-            <option value="dual">雙段 (卡號 + 檢核碼)</option>
-          </select>
-        </label>
-        <label class="settings-field">
-          <span>第一段檢查規則 (留空 = 不檢查)</span>
-          <input type="text" id="brand-field-code1" class="settings-input settings-mono" placeholder="例如：^\d{16}$">
-        </label>
-        <label class="settings-field" id="brand-field-code2-row">
-          <span>第二段檢查規則 (雙段才用)</span>
-          <input type="text" id="brand-field-code2" class="settings-input settings-mono" placeholder="例如：^[A-Z0-9]{8}$">
-        </label>
+        <div class="settings-field">
+          <span>條碼有幾段？</span>
+          <div class="chip-group" data-target="brand-field-mode">
+            <button type="button" class="chip-btn" data-value="single">一段</button>
+            <button type="button" class="chip-btn" data-value="dual">兩段 (卡號 + 檢核碼)</button>
+          </div>
+          <input type="hidden" id="brand-field-mode">
+        </div>
+
+        <!-- 檢查規則：用按鈕選，存檔時由 settings.js 轉成規則字串 -->
+        <div class="rule-builder" id="rule-builder-1">
+          <div class="rule-builder-title" id="rule-builder-1-title">條碼格式</div>
+        </div>
+        <input type="hidden" id="brand-field-code1">
+
+        <div class="rule-builder" id="rule-builder-2">
+          <div class="rule-builder-title">第二段 (檢核碼) 格式</div>
+        </div>
+        <input type="hidden" id="brand-field-code2">
+
         <label class="settings-check">
           <input type="checkbox" id="brand-field-uppercase">
           <span>英文字母自動轉大寫</span>
         </label>
-        <div class="settings-hint">
-          規則用「正規表示式」：<code>\d</code> 數字、<code>[A-Z0-9]</code> 英數字、<code>{8}</code> 剛好 8 碼、<code>{10,24}</code> 10~24 碼、<code>^</code> <code>$</code> 開頭結尾。
-          雙段模式下兩段規則要能互相區分，否則所有條碼都會被當成第一段。
-        </div>
+
         <label class="settings-field">
           <span>測試條碼</span>
           <input type="text" id="brand-field-test" class="settings-input settings-mono" placeholder="貼上一個條碼看符不符合">
@@ -553,12 +555,12 @@
   </div>
 
   <!-- 應用程式邏輯腳本 (附帶版本號破除快取) -->
-  <script src="js/storage.js?v=13.0"></script>
-  <script src="js/scanner.js?v=13.0"></script>
-  <script src="js/barcode-view.js?v=13.0"></script>
-  <script src="js/repair-tool.js?v=13.0"></script>
-  <script src="js/cloud-sync.js?v=13.0"></script>
-  <script src="js/settings.js?v=13.0"></script>
-  <script src="js/app.js?v=13.0"></script>
+  <script src="js/storage.js?v=14.0"></script>
+  <script src="js/scanner.js?v=14.0"></script>
+  <script src="js/barcode-view.js?v=14.0"></script>
+  <script src="js/repair-tool.js?v=14.0"></script>
+  <script src="js/cloud-sync.js?v=14.0"></script>
+  <script src="js/settings.js?v=14.0"></script>
+  <script src="js/app.js?v=14.0"></script>
 </body>
 </html>
