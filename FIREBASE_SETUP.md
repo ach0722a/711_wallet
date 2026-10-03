@@ -40,6 +40,9 @@ service cloud.firestore {
 
 要換成別的 Firebase 專案，改 `DEFAULT_FIREBASE_CONFIG` 即可。
 
+資料庫 ID 設在 `DEFAULT_FIREBASE_CONFIG.databaseId`（目前是主控台上看到的 `default`）。
+連不上時 App 會自動改試 `(default)`，並記住成功的那個。免費方案每個專案只能有一個資料庫，不用另外再建。
+
 ## 同步規則
 
 - 開 App、從背景切回 App、按「🔄 立即同步」時會完整比對一次；平常新增 / 修改 / 刪除卡片後約 2 秒自動上傳有變動的部分。

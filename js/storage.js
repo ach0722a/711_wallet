@@ -30,7 +30,9 @@ const DEFAULT_FIREBASE_CONFIG = {
   projectId: 'wallet-be3b4',
   storageBucket: 'wallet-be3b4.firebasestorage.app',
   messagingSenderId: '871997545197',
-  appId: '1:871997545197:web:bb422032ab362f63ae4ae4'
+  appId: '1:871997545197:web:bb422032ab362f63ae4ae4',
+  // Firestore 資料庫 ID (主控台顯示的名稱)；連不上時同步模組會自動改試 (default)
+  databaseId: 'default'
 };
 
 const DEFAULT_BRAND = '711';
@@ -101,6 +103,12 @@ class CardStorage {
       }
     } catch (e) {
       console.warn('[Storage] 讀取設定失敗:', e);
+    }
+
+    // 手機裡存的是舊版內建設定 ➔ 換成最新的內建設定
+    const savedConfig = this.settings.firebaseConfig;
+    if (savedConfig && savedConfig.projectId === DEFAULT_FIREBASE_CONFIG.projectId) {
+      this.settings.firebaseConfig = DEFAULT_FIREBASE_CONFIG;
     }
 
     if (!Array.isArray(this.settings.brands) || !this.settings.brands.some(b => b.id === DEFAULT_BRAND)) {
