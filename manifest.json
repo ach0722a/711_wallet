@@ -1,7 +1,7 @@
 {
-  "name": "7-11 商品卡皮夾 (7-11 Card Wallet)",
-  "short_name": "7-11卡夾",
-  "description": "極速批次掃描 7-11 商品卡條碼、餘額管理與店員刷卡出示工具",
+  "name": "條碼 Wallet (Barcode Wallet)",
+  "short_name": "條碼Wallet",
+  "description": "7-11、全家等各通路條碼的批次掃描、分類收納、餘額管理與出示工具",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0f172a",

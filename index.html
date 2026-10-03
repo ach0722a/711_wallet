@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>7-11 商品卡皮夾 - 極速批次掃描與餘額管理</title>
+  <title>條碼 Wallet - 多通路條碼收納與餘額管理</title>
   
   <!-- PWA & Mobile Meta Tags -->
   <meta name="theme-color" content="#008148">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="7-11卡夾">
+  <meta name="apple-mobile-web-app-title" content="條碼Wallet">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/svg+xml" href="icons/icon-192.svg">
   <link rel="apple-touch-icon" href="icons/icon-192.svg">
@@ -19,7 +19,7 @@
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
   <!-- 應用樣式表 -->
-  <link rel="stylesheet" href="css/style.css?v=12.0">
+  <link rel="stylesheet" href="css/style.css?v=13.0">
 </head>
 <body>
 
@@ -27,8 +27,8 @@
   <header class="app-header">
     <div class="header-inner">
       <div class="brand-container">
-        <span class="brand-logo-badge">7-11</span>
-        <h1 class="brand-title">商品卡<span>皮夾</span></h1>
+        <span class="brand-logo-badge">▌▍▌</span>
+        <h1 class="brand-title">條碼<span>Wallet</span></h1>
       </div>
       <div class="header-actions">
         <button class="btn-icon-header" id="btn-open-repair" title="條碼修復與圖像還原工具">
@@ -85,6 +85,15 @@
           <option value="balance-asc">餘額少 ➔ 多</option>
           <option value="facevalue">面額大 ➔ 小</option>
         </select>
+      </div>
+
+      <div class="brand-tabs" id="brand-tabs">
+        <button class="brand-tab active" data-brand="all">全部通路</button>
+        <button class="brand-tab" data-brand="711">7-11</button>
+        <button class="brand-tab" data-brand="family">全家</button>
+        <button class="brand-tab" data-brand="hilife">萊爾富</button>
+        <button class="brand-tab" data-brand="okmart">OK</button>
+        <button class="brand-tab" data-brand="other">其他</button>
       </div>
 
       <div class="filter-tabs">
@@ -446,10 +455,10 @@
   </div>
 
   <!-- 應用程式邏輯腳本 (附帶版本號破除快取) -->
-  <script src="js/storage.js?v=12.0"></script>
-  <script src="js/scanner.js?v=12.0"></script>
-  <script src="js/barcode-view.js?v=12.0"></script>
-  <script src="js/repair-tool.js?v=12.0"></script>
-  <script src="js/app.js?v=12.0"></script>
+  <script src="js/storage.js?v=13.0"></script>
+  <script src="js/scanner.js?v=13.0"></script>
+  <script src="js/barcode-view.js?v=13.0"></script>
+  <script src="js/repair-tool.js?v=13.0"></script>
+  <script src="js/app.js?v=13.0"></script>
 </body>
 </html>

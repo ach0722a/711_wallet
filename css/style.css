@@ -1,5 +1,5 @@
 /* ==========================================================================
-   7-11 商品卡皮夾 - 現代化設計系統與樣式 (style.css)
+   條碼 Wallet - 現代化設計系統與樣式 (style.css)
    ========================================================================== */
 
 :root {
@@ -1828,3 +1828,34 @@ body {
 }
 
 
+
+/* 通路分流標籤列 (可橫向捲動) */
+.brand-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  margin-bottom: 8px;
+  scrollbar-width: none;
+}
+
+.brand-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.brand-tab {
+  flex-shrink: 0;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid var(--border-light);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.brand-tab.active {
+  background: var(--c-orange);
+  border-color: var(--c-orange);
+  color: white;
+}

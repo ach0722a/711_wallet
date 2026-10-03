@@ -1,5 +1,5 @@
 /**
- * 7-11 商品卡皮夾 - 資料持久化與雙重儲存管理模組 (storage.js)
+ * 條碼 Wallet - 資料持久化與雙重儲存管理模組 (storage.js)
  * 
  * 設計思路與技術亮點：
  * 1. 雙重保險機制 (LocalStorage + IndexedDB 同步)：雙向防呆，一方遺失另一方自動還原。
@@ -8,11 +8,26 @@
  * 4. 一鍵 CSV / JSON 匯入匯出：支援備份到本機檔案或 Excel。
  */
 
+// 注意：儲存 key 沿用舊名，改名後既有資料才不會遺失
 const STORAGE_KEY = '711_cards_data_v1';
 const SETTINGS_KEY = '711_settings_v1';
 const DB_NAME = '711CardWalletDB';
 const DB_VERSION = 1;
 const STORE_NAME = 'cards';
+
+// 條碼分流：各通路品牌定義 (舊資料沒有 brand 欄位一律視為 7-11)
+const BRANDS = {
+  '711':    { label: '7-11',  color: '#008148' },
+  'family': { label: '全家',   color: '#0091D5' },
+  'hilife': { label: '萊爾富', color: '#E60012' },
+  'okmart': { label: 'OK',    color: '#F39800' },
+  'other':  { label: '其他',   color: '#64748B' }
+};
+const DEFAULT_BRAND = '711';
+
+function getCardBrand(card) {
+  return (card && BRANDS[card.brand]) ? card.brand : DEFAULT_BRAND;
+}
 
 class CardStorage {
   constructor() {
@@ -205,9 +220,12 @@ class CardStorage {
       ? (data.itemName || `商品兌換券 #${this.cards.length + 1}`) 
       : `商品卡 #${this.cards.length + 1}`;
 
+    const brand = BRANDS[data.brand] ? data.brand : DEFAULT_BRAND;
+
     const newCard = {
       id: 'card_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
       code: primaryCode,
+      brand: brand,
       code1: code1,
       code2: code2,
       cardType: cardType, // 'money' 金額型 | 'item' 商品兌換型
@@ -288,6 +306,7 @@ class CardStorage {
       const card = {
         id: 'card_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
         code: cleanCode,
+        brand: DEFAULT_BRAND,
         format: 'CODE128',
         name: `商品卡 #${this.cards.length + added.length + 1}`,
         faceValue: faceVal,
@@ -437,7 +456,7 @@ class CardStorage {
   // 匯出為 JSON 備份檔
   exportJSON() {
     const backupData = {
-      app: '711-Card-Wallet',
+      app: 'Barcode-Wallet',
       version: '1.0',
       exportedAt: new Date().toISOString(),
       stats: this.getStats(),
@@ -449,7 +468,7 @@ class CardStorage {
 
   // 匯出為 CSV 表格 (可用 Excel 開啟)
   exportCSV() {
-    const headers = ['卡片名稱', '主條碼', '第一段(卡號)', '第二段(檢核碼)', '面額', '剩餘餘額', '狀態', '備註', '建立時間', '最後更新時間'];
+    const headers = ['卡片名稱', '主條碼', '第一段(卡號)', '第二段(檢核碼)', '面額', '剩餘餘額', '狀態', '備註', '建立時間', '最後更新時間', '品牌'];
     const rows = this.cards.map(c => [
       `"${(c.name || '').replace(/"/g, '""')}"`,
       `"\t${(c.code || '').replace(/"/g, '""')}"`,
@@ -460,7 +479,8 @@ class CardStorage {
       c.balance > 0 ? '使用中' : '已用完',
       `"${(c.note || '').replace(/"/g, '""')}"`,
       `"${c.createdAt || ''}"`,
-      `"${c.updatedAt || ''}"`
+      `"${c.updatedAt || ''}"`,
+      `"${BRANDS[getCardBrand(c)].label}"`
     ]);
 
     // 加入 UTF-8 BOM，防止 Excel 開啟亂碼
@@ -523,3 +543,5 @@ class CardStorage {
 
 // 建立全域單例物件
 window.cardStorage = new CardStorage();
+window.BRANDS = BRANDS;
+window.getCardBrand = getCardBrand;

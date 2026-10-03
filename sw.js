@@ -1,21 +1,21 @@
 /**
- * 7-11 商品卡皮夾 - 離線 Service Worker 快取模組 (sw.js - v2)
+ * 條碼 Wallet - 離線 Service Worker 快取模組 (sw.js - v2)
  * 
  * 升級思路：
  * 採用 Network-First (網路優先) 策略載入 HTML/JS/CSS，確保每次有新版本推送時
  * 只要有網路就能立即獲取最新程式碼，斷網時才使用本地快取。
  */
 
-const CACHE_NAME = '711-wallet-cache-v12';
+const CACHE_NAME = '711-wallet-cache-v13';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
-  './css/style.css?v=12.0',
-  './js/storage.js?v=12.0',
-  './js/scanner.js?v=12.0',
-  './js/barcode-view.js?v=12.0',
-  './js/repair-tool.js?v=12.0',
-  './js/app.js?v=12.0',
+  './css/style.css?v=13.0',
+  './js/storage.js?v=13.0',
+  './js/scanner.js?v=13.0',
+  './js/barcode-view.js?v=13.0',
+  './js/repair-tool.js?v=13.0',
+  './js/app.js?v=13.0',
   './manifest.json',
   './icons/icon-192.svg',
   './icons/icon-512.svg',

@@ -1,5 +1,5 @@
 /**
- * 7-11 商品卡皮夾 - 主控制器與 UI 互動邏輯 (app.js)
+ * 條碼 Wallet - 主控制器與 UI 互動邏輯 (app.js)
  * 
  * 升級亮點：
  * 1. 支援「雙段條碼模式」與「單段條碼模式」一鍵切換。
@@ -10,6 +10,7 @@
 class AppController {
   constructor() {
     this.currentFilter = 'all';
+    this.currentBrand = 'all';
     this.currentSort = 'newest';
     this.searchQuery = '';
     this.isAppReady = false;
@@ -48,6 +49,16 @@ class AppController {
         document.querySelectorAll('.filter-tab').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this.currentFilter = btn.dataset.filter;
+        this.renderCardList();
+      });
+    });
+
+    // 通路分流
+    document.querySelectorAll('.brand-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.brand-tab').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.currentBrand = btn.dataset.brand;
         this.renderCardList();
       });
     });
@@ -257,7 +268,7 @@ class AppController {
     if (btnExportJSON) {
       btnExportJSON.addEventListener('click', () => {
         const dataStr = window.cardStorage.exportJSON();
-        this.downloadFile(dataStr, `711_商品卡備份_${new Date().toISOString().slice(0, 10)}.json`, 'application/json');
+        this.downloadFile(dataStr, `條碼wallet_備份_${new Date().toISOString().slice(0, 10)}.json`, 'application/json');
         this.showToast('💾 已下載 JSON 完整備份檔', 'success');
       });
     }
@@ -266,7 +277,7 @@ class AppController {
     if (btnExportCSV) {
       btnExportCSV.addEventListener('click', () => {
         const csvStr = window.cardStorage.exportCSV();
-        this.downloadFile(csvStr, `711_商品卡清單_${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv;charset=utf-8;');
+        this.downloadFile(csvStr, `條碼wallet_清單_${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv;charset=utf-8;');
         this.showToast('📊 已下載 CSV Excel 檔案', 'success');
       });
     }
@@ -337,6 +348,11 @@ class AppController {
 
     let cards = window.cardStorage.getCards();
 
+    // 通路分流
+    if (this.currentBrand !== 'all') {
+      cards = cards.filter(c => window.getCardBrand(c) === this.currentBrand);
+    }
+
     // 篩選邏輯
     if (this.currentFilter === 'active') {
       cards = cards.filter(c => c.status === 'active');
@@ -386,6 +402,7 @@ class AppController {
       const formattedCode = window.barcodePresenter.formatCardCode(primaryCode);
       const percent = card.faceValue > 0 ? Math.min(100, Math.round((card.balance / card.faceValue) * 100)) : 0;
       const isDual = Boolean(card.code2);
+      const brand = window.BRANDS[window.getCardBrand(card)];
 
       return `
         <div class="card-item ${isDepleted ? 'card-depleted' : ''}" onclick="window.barcodePresenter.openModal('${card.id}')">
@@ -393,7 +410,8 @@ class AppController {
           
           <div class="card-header-row">
             <div class="card-title-group">
-              <span class="card-brand-badge">${isItem ? '🎁 兌換' : '7-11'}</span>
+              <span class="card-brand-badge" style="background: ${brand.color};">${brand.label}</span>
+              ${isItem ? '<span class="card-brand-badge">🎁 兌換</span>' : ''}
               <span class="card-name-text">${this.escapeHTML(card.name)}</span>
               ${isDual ? '<span class="badge-dual-tag">雙段</span>' : ''}
               ${card.photoUrl ? '<span class="badge-dual-tag" style="background: rgba(0,129,72,0.2); color: #00FF88; border-color: rgba(0,255,136,0.3);">📷 照片</span>' : ''}
@@ -569,20 +587,37 @@ class AppController {
   }
 
   openManualAddModal() {
-    const rawCode1 = prompt('【第一段】請輸入 7-11 商品卡主卡號條碼 (純數字)：');
+    const brandKeys = Object.keys(window.BRANDS);
+    const brandMenu = brandKeys.map((k, i) => `${i + 1}. ${window.BRANDS[k].label}`).join('\n');
+    const brandChoice = prompt(`請選擇條碼通路：\n${brandMenu}`, '1');
+    if (brandChoice === null) return;
+    const brand = brandKeys[Number(brandChoice) - 1] || 'other';
+    const is711 = brand === '711';
+
+    const rawCode1 = prompt(is711
+      ? '【第一段】請輸入 7-11 商品卡主卡號條碼 (純數字)：'
+      : `請輸入${window.BRANDS[brand].label}條碼內容：`);
     if (!rawCode1 || !rawCode1.trim()) return;
 
     const code1 = rawCode1.trim().replace(/\s+/g, '');
-    if (!/^\d{10,24}$/.test(code1)) {
+    // 7-11 卡號格式固定，其他通路格式不一，只擋掉 CODE128 無法表示的字元
+    if (is711 && !/^\d{10,24}$/.test(code1)) {
       this.showToast('❌ 第一段卡號必須是純數字 (10~24 碼)！', 'error');
       return;
     }
-
-    const rawCode2 = prompt('【第二段】請輸入 8 碼檢核碼條碼 (例如 B5SJBN13，無請留空)：', '');
-    let code2 = rawCode2 ? rawCode2.trim().replace(/\s+/g, '').toUpperCase() : '';
-    if (code2 && !/^[A-Z0-9]{8}$/.test(code2)) {
-      this.showToast('❌ 第二段檢核碼格式不正確，必須是嚴格 8 碼英數字 (如 B5SJBN13)！', 'error');
+    if (!is711 && !/^[\x20-\x7E]+$/.test(code1)) {
+      this.showToast('❌ 條碼只能包含英數字與一般符號！', 'error');
       return;
+    }
+
+    let code2 = '';
+    if (is711) {
+      const rawCode2 = prompt('【第二段】請輸入 8 碼檢核碼條碼 (例如 B5SJBN13，無請留空)：', '');
+      code2 = rawCode2 ? rawCode2.trim().replace(/\s+/g, '').toUpperCase() : '';
+      if (code2 && !/^[A-Z0-9]{8}$/.test(code2)) {
+        this.showToast('❌ 第二段檢核碼格式不正確，必須是嚴格 8 碼英數字 (如 B5SJBN13)！', 'error');
+        return;
+      }
     }
 
     const modeChoice = prompt('請選擇卡片類型：\n1. 💰 金額商品卡 (預設)\n2. 🎁 商品兌換券 (如咖啡/麵包券)', '1');
@@ -603,6 +638,7 @@ class AppController {
     }
 
     window.cardStorage.addCard({
+      brand: brand,
       code1: code1,
       code2: code2,
       cardType: isItemType ? 'item' : 'money',
