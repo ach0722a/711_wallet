@@ -87,6 +87,8 @@ class CloudSync {
       }
       this.auth = firebase.auth();
       this.db = firebase.firestore();
+      // 有些手機網路 / 瀏覽器會擋 Firestore 的串流連線，改用長輪詢比較穩
+      this.db.settings({ experimentalForceLongPolling: true, merge: true });
       this.ready = true;
 
       // 從 redirect 登入回來時取結果 (iOS 主畫面 App 不支援彈窗登入)
@@ -192,9 +194,22 @@ class CloudSync {
       this.lastError = '';
     } catch (err) {
       console.warn('[Cloud] 上傳失敗:', err);
-      this.lastError = err.message;
+      this.lastError = this.describeError(err);
     }
     this.notify();
+  }
+
+  // 把 Firebase 的英文錯誤轉成看得懂的說明
+  describeError(err) {
+    const msg = String((err && err.message) || err || '');
+    if (err && err.code === 'permission-denied') {
+      return '沒有權限：請確認 Firestore 的「規則」已照 FIREBASE_SETUP.md 設定並發布';
+    }
+    if (/offline/i.test(msg) || (err && err.code === 'unavailable')) {
+      if (!navigator.onLine) return '手機目前沒有網路';
+      return '連不到雲端資料庫：請確認 Firestore 資料庫已建立、ID 是 (default)、且為 Native 模式';
+    }
+    return msg;
   }
 
   settingsPayload() {
@@ -290,9 +305,7 @@ class CloudSync {
       if (brandsChanged && window.settingsPanel) window.settingsPanel.renderBrandList();
     } catch (err) {
       console.warn('[Cloud] 同步失敗:', err);
-      this.lastError = err.code === 'permission-denied'
-        ? '沒有權限，請確認 Firestore 安全規則 (見 FIREBASE_SETUP.md)'
-        : err.message;
+      this.lastError = this.describeError(err);
       this.applyingRemote = false;
     }
 
